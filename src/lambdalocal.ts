@@ -12,7 +12,7 @@ import path = require('path');
 import os = require('os');
 import { createServer, IncomingMessage, ServerResponse } from 'http';
 import utils = require('./lib/utils.js');
-import Context = require('./lib/context.js');
+import Context = require('./lib/_context.js');
 
 /*
  * Lambda local version
