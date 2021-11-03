@@ -11,45 +11,9 @@ import fs = require('fs');
 import path = require('path');
 import os = require('os');
 import { createServer, IncomingMessage, ServerResponse } from 'http';
-import utils = require('./lib/utils.js');
-import Context = require('./lib/_context.js');
+import utils = require('../src/lib/utils.js');
+import Context = require('./_context.js');
 
-/*
- * Lambda local version
- */
-export const version = "2.0.0";
-
-var logger = utils.getWinstonConsole();
-
-export function setLogger(_logger){
-    if(_logger != null && typeof _logger.transports != 'undefined'){
-        logger = _logger;
-    } else {
-        console.warn("Invalid logger object ! Using default logger");
-    }
-}
- 
-export function getLogger() {
-    return logger;
-}
-
-export function execute(opts) {
-    if (opts.callback) {
-        _executeSync.apply(this, [opts]);
-    } else {
-        var that = this;
-        return new Promise(function (resolve, reject) {
-            var _opts = Object.assign({}, opts); /* Copy the opts to avoid modifying the external opts */
-            _opts.callback = function (_err, _done) {
-                if (_err) {
-                    reject(_err);
-                }
-                resolve(_done);
-            };
-            _executeSync.apply(that, [_opts]);
-        });
-    }
-};
 
 export function watch(opts) {
     if (!opts.verboseLevel){
@@ -133,15 +97,6 @@ function _executeSync(opts) {
             throw new SyntaxError("clientContext must be stringified JS object");
         }
 
-    }
-
-    if (lambdaFunc && lambdaPath) {
-        throw new SyntaxError("Cannot specify both lambdaFunc and lambdaPath !");
-        return;
-    }
-
-    if (lambdaPath){
-        lambdaPath = utils.getAbsolutePath(lambdaPath);
     }
 
     // set environment variables before the require

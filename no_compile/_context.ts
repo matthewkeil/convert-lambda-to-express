@@ -6,8 +6,8 @@
  * https://docs.aws.amazon.com/en_us/lambda/latest/dg/nodejs-prog-model-context.html
  */
 
-import utils = require('./utils.js');
-import mute = require('./mute.js');
+import utils = require('../src/lib/utils.js');
+import mute = require('../src/lib/getLogger.js');
 
 function Context() {
     this.logger = null;

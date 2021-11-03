@@ -1,30 +1,30 @@
+import os from "os";
+import { SharedIniFileCredentials } from "aws-sdk";
 import {
   Context as IContext,
   CognitoIdentity,
   ClientContext,
+  APIGatewayProxyResult,
 } from "aws-lambda";
-import { TimeoutError, generateRandomHex } from "./utils.js";
-import mute from "./mute.js";
-import { Logger } from "winston";
+import { generateRandomHex, TimeoutError } from "./utils.js";
+import { WrapperOptions } from "../wrapLambda.js";
 
 /*
  * Lambda's Context object.
  * Refer to this documentation:
  * https://docs.aws.amazon.com/lambda/latest/dg/nodejs-context.html
  */
-export interface ContextOptions {
+export interface ContextOptions extends WrapperOptions {
   functionName: string;
-  logger: Logger;
-  verboseLevel?: number;
-  timeoutInMs?: number;
-  callbackWaitsForEmptyEventLoop?: boolean;
-  identity?: CognitoIdentity;
-  clientContext?: ClientContext;
-  finalize: () => void;
+  startTime: number;
+  credentials?: SharedIniFileCredentials;
+  nodeModulesPath: string;
+  resolve: (response: APIGatewayProxyResult) => void;
+  reject: (err: Error) => void;
 }
 
 export class Context implements IContext {
-  public callbackWaitsForEmptyEventLoop: boolean;
+  public callbackWaitsForEmptyEventLoop = false; // not possible on a server
   public functionName: string;
   public functionVersion: string;
   public invokedFunctionArn: string;
@@ -35,35 +35,22 @@ export class Context implements IContext {
   public identity?: CognitoIdentity;
   public clientContext?: ClientContext;
 
-  private logger: Logger;
-  private verboseLevel: number;
-  private unmute: () => void;
-
-  private finalize: () => void;
   private startTime: number;
   private timeout: number;
-  private _timeout: NodeJS.Timeout;
+  private finalize: () => void;
 
+  private _timeout?: NodeJS.Timeout;
   private _stopped = false;
 
-  constructor(options: ContextOptions) {
+  constructor(private options: ContextOptions) {
     this.finalize = options.finalize ?? function () {};
-    this.logger = options.logger;
-    this.verboseLevel = options.verboseLevel;
+    this._buildExecutionEnv();
 
-    if (this.verboseLevel > 1) {
-      this.logger.log("info", "START RequestId: " + this.awsRequestId);
-    }
-    if (this.verboseLevel < 3) {
-      this.unmute = mute();
-    }
     /**
      *
      *
      *
      */
-    this.callbackWaitsForEmptyEventLoop =
-      options.callbackWaitsForEmptyEventLoop ?? false;
     this.functionName = options.functionName;
     this.functionVersion = process.env.AWS_LAMBDA_FUNCTION_VERSION ?? "1";
     this.invokedFunctionArn = this._createInvokeFunctionArn();
@@ -77,67 +64,57 @@ export class Context implements IContext {
      *
      *
      */
-    this.startTime = new Date().getTime();
-    this.timeout = options.timeoutInMs ?? 3000;
-    this._init_timeout();
+    this.startTime = options.startTime;
+    this.timeout = options?.timeoutInSeconds
+      ? options.timeoutInSeconds * 1000
+      : 3000; // default lambda timeout
+    this._timeout = setTimeout(() => {
+      this.fail(
+        new TimeoutError(
+          "Task timed out after " +
+            (this.timeout / 1000).toFixed(2) +
+            " seconds"
+        )
+      );
+    }, this.timeout);
   }
 
   done(err?: Error | string, messageOrObject?: any): void {
-    // May only be called once
     if (this._stopped) {
       return;
     }
     this._stopped = true;
+    this._clearTimeout();
+    this.finalize();
 
-    clearTimeout(this._timeout);
-    if (this.unmute != null) {
-      this.unmute();
-      this.unmute = null;
+    let error: Error | undefined;
+    if (typeof err === "string") {
+      error = new Error(err);
+    } else if (err) {
+      error = err;
+    }
+    if (error) {
+      return this.options.reject(error);
     }
 
-    let errorOutput;
-    if (err instanceof Error) {
-      errorOutput = {
-        errorMessage: err.message,
-        errorType: err.name,
+    let response: APIGatewayProxyResult | undefined;
+    if (typeof messageOrObject === "string") {
+      response = {
+        body: messageOrObject,
+        statusCode: 200,
       };
-      //http://docs.aws.amazon.com/en_en/lambda/latest/dg/nodejs-prog-mode-exceptions.html
-      if (err.stack) {
-        // Trim stack
-        const stack = err.stack.split("\n");
-        stack.shift();
-        for (var i = 0; i < stack.length; i++) {
-          stack[i] = stack[i].trim().substr(3);
-        }
-        errorOutput.stackTrace = stack;
-      }
-    } else if (typeof err === "string") {
-      errorOutput = { errorMessage: err };
+    } else if (
+      typeof messageOrObject === "object" &&
+      messageOrObject !== null
+    ) {
+      response = {
+        body: JSON.stringify(messageOrObject),
+        statusCode: 200,
+      };
     }
-
-    if (errorOutput) {
-      if (this.verboseLevel > 1) {
-        this.logger.log("error", "End - Error:");
-      }
-      if (this.verboseLevel > 0) {
-        this.logger.log("error", err);
-      }
-    } else {
-      if (this.verboseLevel > 1) {
-        this.logger.log("info", "End - Result:");
-      }
-      if (this.verboseLevel > 0) {
-        this.logger.log("info", messageOrObject);
-      }
-    }
-    this.finalize(); //Destroy env...
-
-    if (this.callbackWaitsForEmptyEventLoop) {
-      this.logger.log(
-        "info",
-        "This Context Mock cannot wait for empty event loop"
-      );
-    }
+    response
+      ? this.options.resolve(response)
+      : this.options.resolve({ statusCode: 200, body: "" });
   }
 
   fail(err: Error | string): void {
@@ -153,16 +130,44 @@ export class Context implements IContext {
     return this.timeout + this.startTime - now;
   }
 
-  private _init_timeout() {
-    this._timeout = setTimeout(() => {
-      this.fail(
-        new TimeoutError(
-          "Task timed out after " +
-            (this.timeout / 1000).toFixed(2) +
-            " seconds"
-        )
-      );
-    }, this.timeout);
+  public _clearTimeout() {
+    if (this._timeout) {
+      clearTimeout(this._timeout);
+      this._timeout = undefined;
+    }
+  }
+
+  private _buildExecutionEnv() {
+    const defaultRegion = "us-east-1";
+    const pwd = process.cwd();
+
+    // base configuration
+    process.env.AWS_LAMBDA_FUNCTION_NAME = this.options.functionName;
+    process.env.AWS_LAMBDA_FUNCTION_MEMORY_SIZE = Math.floor(
+      os.freemem() / 1048576
+    ).toString();
+    process.env.AWS_LAMBDA_FUNCTION_VERSION = "$LATEST";
+    process.env.AWS_LAMBDA_INITIALIZATION_TYPE = "on-demand";
+    process.env.TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    // logging information
+    process.env.AWS_LAMBDA_LOG_GROUP_NAME = this.logGroupName;
+    process.env.AWS_LAMBDA_LOG_STREAM_NAME = this.logStreamName;
+    // information so aws-sdk can run as it would normally
+    process.env.AWS_REGION = this.options.region ?? defaultRegion;
+    process.env.AWS_DEFAULT_REGION = this.options.region ?? defaultRegion;
+    process.env.AWS_ACCESS_KEY_ID = `${this.options.credentials?.accessKeyId}`;
+    process.env.AWS_SECRET_ACCESS_KEY = `${this.options.credentials?.secretAccessKey}`;
+    process.env.AWS_SESSION_TOKEN = `${this.options.credentials?.sessionToken}`;
+    // runtime information
+    process.env.AWS_EXECUTION_ENV = `AWS_Lambda_nodejs${
+      process.version.split(".")[0]
+    }.x`;
+    process.env.AWS_LAMBDA_RUNTIME_API = "127.0.0.1:9001";
+    process.env._HANDLER = this.options.handler ?? "index.handler";
+    process.env.PWD = pwd;
+    process.env.LAMBDA_TASK_ROOT = pwd;
+    process.env.LAMBDA_RUNTIME_DIR = process.execPath;
+    process.env.NODE_PATH = this.options.nodeModulesPath;
   }
 
   private _createInvokeFunctionArn() {

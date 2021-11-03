@@ -3,7 +3,7 @@
 'use strict';
 
 import lambdaLocal = require('./lambdalocal');
-import utils = require('./lib/utils');
+import utils = require('../src/lib/utils');
 
 /*
  * Local executor for Amazon Lambda function
