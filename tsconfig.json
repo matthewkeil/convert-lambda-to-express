@@ -1,13 +1,23 @@
 {
   "compilerOptions": {
-    "allowJs": true,
-    "declaration": true,
-    "outDir": "./build",
-    "target": "es5",
+    "outDir": "dist",
+    "target": "ES2018",
+    "lib": ["ESNext"],
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "forceConsistentCasingInFileNames": true,
+    "allowJs": false,
+    "checkJs": false,
+    "declaration": true,
     "alwaysStrict": true,
     "strict": true,
     "strictNullChecks": true,
+    "strictFunctionTypes": true,
     "strictPropertyInitialization": true,
     "strictBindCallApply": true,
     "noImplicitAny": true,
@@ -15,6 +25,8 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
     "noUnusedParameters": true,
-    "noUnusedLocals": true
+    "noUnusedLocals": true,
+    "typeRoots": ["node_modules/@types"],
+    "types": ["node", "jest"]
   }
 }

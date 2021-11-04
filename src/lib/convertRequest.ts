@@ -5,7 +5,7 @@ import {
 } from "aws-lambda";
 import { Context } from "./Context";
 import { generateRandomHex } from "./utils";
-import { WrapperOptions } from "../wrapLambda";
+import { WrapperOptions } from "..";
 import { SharedIniFileCredentials } from "aws-sdk";
 
 const defaultWrapperOptions = {
@@ -54,6 +54,7 @@ function buildRequestHeaders(_headers: Request["headers"]) {
 
 interface ConvertRequestOptions extends WrapperOptions {
   req: Request;
+  nodeModulesPath: string;
   credentials?: SharedIniFileCredentials;
   resolve: (response: APIGatewayProxyResult) => void;
   reject: (err: Error) => void;

@@ -7,7 +7,7 @@ import {
   APIGatewayProxyResult,
 } from "aws-lambda";
 import { generateRandomHex, TimeoutError } from "./utils.js";
-import { WrapperOptions } from "../wrapLambda.js";
+import { WrapperOptions } from "../index.js";
 
 /*
  * Lambda's Context object.

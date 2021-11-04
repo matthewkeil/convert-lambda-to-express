@@ -8,21 +8,22 @@ import { Logger } from "winston";
 export interface WrapperOptions {
   functionName?: string;
   resourcePath?: string;
-  logger?: Logger;
   profile?: string;
+  region?: string;
+  accountId?: string;
+
+  logger?: Logger;
   timeoutInSeconds?: number;
   stage?: string;
-  accountId?: string;
-  defaultHeaders?: {
-    [header: string]: string | number | boolean;
-  };
   isBase64Encoded?: boolean;
-  region?: string;
   handler?: string; // in filename.exportName format
   nodeModulesPath?: string;
   finalize?: () => void;
   identity?: CognitoIdentity;
   clientContext?: ClientContext;
+  defaultHeaders?: {
+    [header: string]: string | number | boolean;
+  };
 }
 
 import { resolve } from "path";

@@ -1,5 +1,3 @@
-"use strict";
-
 /*
  * Simplified mute module.
  * https://github.com/shannonmoeller/mute
@@ -27,83 +25,82 @@
  *
  */
 
+// export function getWinstonConsole() {
+//   const { combine, colorize, simple } = winston.format;
+//   const _simple = simple();
+//   const myFormat = winston.format((info) => {
+//     const stringifiedRest = processJSON(
+//       Object.assign({}, info, {
+//         level: undefined,
+//         message: undefined,
+//         splat: undefined,
+//       })
+//     );
+//     var new_info = { level: info.level, message: info.message };
+//     if (new_info.message == undefined) {
+//       new_info.message = "";
+//     }
+//     if (stringifiedRest !== "{}") {
+//       new_info.message += stringifiedRest;
+//     }
+//     return _simple.transform(new_info);
+//   });
 
-export function getWinstonConsole() {
-  const { combine, colorize, simple } = winston.format;
-  const _simple = simple();
-  const myFormat = winston.format((info) => {
-    const stringifiedRest = processJSON(
-      Object.assign({}, info, {
-        level: undefined,
-        message: undefined,
-        splat: undefined,
-      })
-    );
-    var new_info = { level: info.level, message: info.message };
-    if (new_info.message == undefined) {
-      new_info.message = "";
-    }
-    if (stringifiedRest !== "{}") {
-      new_info.message += stringifiedRest;
-    }
-    return _simple.transform(new_info);
-  });
+//   const logger = winston.createLogger({
+//     level: "info",
+//     transports: [
+//       new winston.transports.Console({
+//         format: combine(colorize(), myFormat()),
+//       }),
+//     ],
+//   });
+//   return logger;
+// }
 
-  const logger = winston.createLogger({
-    level: "info",
-    transports: [
-      new winston.transports.Console({
-        format: combine(colorize(), myFormat()),
-      }),
-    ],
-  });
-  return logger;
-}
+// var logger = utils.getWinstonConsole();
 
-var logger = utils.getWinstonConsole();
+// export function setLogger(_logger){
+//     if(_logger != null && typeof _logger.transports != 'undefined'){
+//         logger = _logger;
+//     } else {
+//         console.warn("Invalid logger object ! Using default logger");
+//     }
+// }
 
-export function setLogger(_logger){
-    if(_logger != null && typeof _logger.transports != 'undefined'){
-        logger = _logger;
-    } else {
-        console.warn("Invalid logger object ! Using default logger");
-    }
-}
- 
-export function getLogger() {
-    return logger;
-}
+// export function getLogger() {
+//     return logger;
+// }
 
-function _mute(stream) {
-  var write = stream && stream.write;
-  var originalWrite = write && write.originalWrite;
+// function _mute(stream) {
+//   var write = stream && stream.write;
+//   var originalWrite = write && write.originalWrite;
 
-  // We only need to mute unmuted streams
-  if (!write || originalWrite) {
-    return;
-  }
+//   // We only need to mute unmuted streams
+//   if (!write || originalWrite) {
+//     return;
+//   }
 
-  function noop() {}
-  noop.originalWrite = write;
-  stream.write = noop;
-}
+//   function noop() {}
+//   noop.originalWrite = write;
+//   stream.write = noop;
+// }
 
-function _unmute(stream) {
-  var write = stream && stream.write;
-  var originalWrite = write && write.originalWrite;
+// function _unmute(stream) {
+//   var write = stream && stream.write;
+//   var originalWrite = write && write.originalWrite;
 
-  // We only need to unmute muted streams
-  if (!write || !originalWrite) {
-    return;
-  }
+//   // We only need to unmute muted streams
+//   if (!write || !originalWrite) {
+//     return;
+//   }
 
-  stream.write = originalWrite;
-}
+//   stream.write = originalWrite;
+// }
 
-export default function mute() {
-  var streams = [process.stdout, process.stderr];
-  streams.forEach(_mute);
-  return function unmuteStreams() {
-    streams.forEach(_unmute);
-  };
-}
+// export default function mute() {
+//   var streams = [process.stdout, process.stderr];
+//   streams.forEach(_mute);
+//   return function unmuteStreams() {
+//     streams.forEach(_unmute);
+//   };
+// }

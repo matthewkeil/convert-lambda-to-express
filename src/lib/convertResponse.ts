@@ -1,6 +1,7 @@
+import util from "util";
 import { Response } from "express";
 import { APIGatewayProxyResult } from "aws-lambda";
-import { WrapperOptions } from "../wrapLambda";
+import { WrapperOptions } from "..";
 import { Logger } from "winston";
 
 function buildResponseHeaders({
@@ -36,7 +37,8 @@ function buildResponseHeaders({
 
 export function convertResponseFactory(
   res: Response,
-  logger: Logger | Console
+  logger: Logger | Console,
+  options?: WrapperOptions
 ) {
   return function convertResponse(
     err?: Error,
@@ -55,28 +57,21 @@ export function convertResponseFactory(
     }
 
     if (!response) {
-      throw new Error('no error or response to send');
+      throw new Error("no error or response to send");
     }
 
-    if (this.verboseLevel > 1) {
-      this._logger.log("info", "End - Result:");
-    }
-    if (this.verboseLevel > 0) {
-      this._logger.log("info", messageOrObject);
-    }
+    logger.log("info", "End - Result:");
+    logger.log("info", util.inspect(response, false, Infinity));
 
     res.status(response.statusCode);
-
     const headers = buildResponseHeaders({ response, options });
     for (const [name, value] of headers.entries()) {
       res.setHeader(name, `${value}`);
     }
-
     if (response.body) {
       res.send(response.body);
     }
+    
     return res.end();
   };
 }
-f5f6bdbe32a3774162443b7046a424d52e7ed3b1
-6a1c99438c337bcc738c478b4310593f131b0867
