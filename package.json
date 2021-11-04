@@ -1,22 +1,44 @@
 {
-  "name": "lambda-local",
-  "version": "1.7.1",
-  "description": "Commandline tool to run Lambda functions on your local machine.",
-  "main": "build/lambdalocal.js",
-  "types": "build/lambdalocal.d.ts",
-  "bin": {
-    "lambda-local": "build/cli.js"
-  },
+  "name": "convert-lambda-to-express",
+  "version": "1.0.0",
+  "description": "Wrapper to run lambda on express. Works great for running lambdas as an express server during development but is production ready. Developed to work in conjunction with matthewkeil/full-stack-pattern cdk construct.",
   "scripts": {
-    "test": "mocha",
-    "build": "tsc --declaration"
+    "node": "node",
+    "ts": "npm run node -- -r ts-node/register",
+    "test": "jest",
+    "build": "tsc --project tsconfig.build.json"
   },
-  "files": [
-    "*.json",
-    "build",
-    "examples",
-    "Makefile"
+  "dependencies": {
+    "aws-sdk": "^2.1017.0",
+    "express": "^4.17.1",
+    "winston": "^3.3.3"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.84",
+    "@types/express": "^4.17.13",
+    "@types/jest": "^27.0.2",
+    "@types/node": "^15.12.4",
+    "jest": "^27.3.1",
+    "ts-node": "^10.4.0",
+    "typescript": "^4.3.4"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "license": "MIT",
+  "author": "Matthew Keil",
+  "maintainers": [
+    {
+      "name": "Matthew Keil (matthewkeil)",
+      "email": "me@matthewkeil.com"
+    }
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/matthewkeil/convert-lambda-to-express.git"
+  },
+  "bugs": {
+    "url": "https://github.com/matthewkeil/convert-lambda-to-express/issues"
+  },
   "keywords": [
     "lambda",
     "amazon",
@@ -24,37 +46,5 @@
     "AWS",
     "local",
     "run"
-  ],
-  "author": "ashiina",
-  "maintainers": [
-    {
-      "name": "Gabriel Potter (gpotter2)",
-      "email": "gabriel@potter.fr"
-    }
-  ],
-  "engines": {
-    "node": ">=6"
-  },
-  "dependencies": {
-    "aws-sdk": "^2.488.0",
-    "commander": "^4.1.0",
-    "dotenv": "^8.0.0",
-    "winston": "^3.2.1"
-  },
-  "devDependencies": {
-    "@types/node": "^13.1.7",
-    "chai": "^4.2.0",
-    "mocha": "^7.0.0",
-    "sinon": "^8.1.0",
-    "typescript": "^3.7.5"
-  },
-  "preferGlobal": true,
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/ashiina/lambda-local.git"
-  },
-  "bugs": {
-    "url": "https://github.com/ashiina/lambda-local/issues"
-  },
-  "license": "MIT"
+  ]
 }

@@ -268,26 +268,6 @@ describe("- Testing lambdalocal.js", function () {
                 });
             });
         });
-        describe("* Test aws-sdk import", function () {
-            it("should return an aws-sdk version >= 2", function (cb) {
-                this.timeout(4000);
-                var lambdalocal = require(lambdalocal_path);
-                lambdalocal.setLogger(winston);
-                var lambdaFunc = require("./functs/test-func-aws-sdk.js");
-                lambdalocal.execute({
-                    event: require(path.join(__dirname, "./events/test-event.js")),
-                    lambdaFunc: lambdaFunc,
-                    lambdaHandler: functionName,
-                    callbackWaitsForEmptyEventLoop: false,
-                    timeoutMs: 1000,
-                    callback: function (_err, _done) {
-                        assert.ok(parseInt(_done.version) >= 2);
-                        cb();
-                    },
-                    verboseLevel: 1
-                });
-            });
-        });
         describe("* Return Error object", function () {
             it("should convert it to correct JSON format", function (cb) {
                 var lambdalocal = require(lambdalocal_path);
@@ -302,6 +282,7 @@ describe("- Testing lambdalocal.js", function () {
                     callback: function (err, _done) {
                         assert.equal(err.errorType, "Error");
                         assert.equal(err.errorMessage, "Failed for an unknown reason !");
+                        assert.ok(err.stackTrace.some(function(x){return x.includes("test-func-cb-error.js:5");}));
                         cb();
                     },
                     verboseLevel: 1
@@ -558,5 +539,15 @@ describe("- Testing cli.js", function () {
             assert.equal(r.status, 0);
             assert.equal((r.output.indexOf("Timeout finished !") !== -1), true)
         });
+    });
+    describe("* Test --version", function() {
+      var lambdalocal = require(lambdalocal_path);
+      it("should match the current latest version", function() {
+          var command = get_shell("node ../build/cli.js --version");
+          var r = spawnSync(command[0], command[1]);
+          process_outputs(r);
+          assert.equal(r.status, 0);
+          assert.equal(r.output.trim(), lambdalocal.version);
+      });
     });
 });
