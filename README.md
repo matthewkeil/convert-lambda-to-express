@@ -1,14 +1,14 @@
 # convert-lambda-to-express
 
-<!-- [![NPM](https://nodei.co/npm/lambda-local.png?compact=true)](https://www.npmjs.com/package/lambda-local)
+Production-ready package to run your lambda workloads as an express server. Build with the developer (me :P) in mind and makes development of lambda api's a breeze. This package was developed because the other options available for running lambdas, like [sam local start-api](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-cli-command-reference-sam-local-start-api.html) [serverless-offline](https://github.com/dherault/serverless-offline) or [docker-lambda](https://github.com/lambci/docker-lambda), require docker containers and are VERY slow hot-reloading or do not provide that feature at all (how does one dev without hot reload these days?!?!).
 
-[![Lambda-local unit tests](https://github.com/ashiina/lambda-local/actions/workflows/unittests.yml/badge.svg?branch=develop&event=push)](https://github.com/ashiina/lambda-local/actions?query=event%3Apush) -->
+Running apiGateway/lambda locally during development can be a challenge (to say the least). The other options out there are either too slow or too complicated. This package aims to solve this problem by providing a simple way to run your api locally. It allows you to wrap your handlers and serve them from an express server.
 
-Lambda-local lets you test **NodeJS Amazon Lambda functions** on your local machine, by providing a simplistic API and command-line tool.
+`convert-lambda-to-express` provides fully features `event` and `context` objects to your handlers and there should be no need to modify your existing code. If you rely on the ENVIRONMENT variables that lambda provides, those are accounted for as well.
 
-It does not aim to be perfectly feature proof as projects like [serverless-offline](https://github.com/dherault/serverless-offline) or [docker-lambda](https://github.com/lambci/docker-lambda), but rather to remain **very light** (it still provides a fully built `Context`, handles all of its parameters and functions, and everything is customizable easily).
+There are even some great use cases for migrating workloads away from Lambda and this is the project for you. Hate your, now baked-in, vendor lock with the non-portable lambda function signature? Have you found that concurrency limits with very choppy traffic for extremely high workloads make it hard to reserve concurrency for and just want to use an auto-scaling group or kubernetes cluster now that you've grown? Do you have long running, but very low resource tasks that end up costing an arm and leg on Lambda. Depending on your specifics it can end up being much more effective/cost-efficient to run you system on EC2 or on a kubernetes cluster. Rest assured this is a production-ready package that is built for a bulletproof base with express.
 
-The main target are unit tests and running lambda functions locally.
+If you love this package and want to [thank me](https://www.paypal.com/donate?hosted_button_id=HCF76TA62TXJW), or contract with me, you can find me at [Matthew Keil](https://www.linkedin.com/in/matthew-keil/).  I specialize in DevOps, Security(SecOps) and Crypto/Solidity development. Open-source for the win!
 
 ## Install
 
@@ -35,9 +35,9 @@ app.listen(3000, () => {
 ## Advanced usage
 
 ```typescript
-import { wrapLambda } from "convert-lambda-to-express";
 import express from "express";
-import { handler, WrapperOptions } from "./someLambdaHandler";
+import { wrapLambda, WrapperOptions } from "convert-lambda-to-express";
+import { handler } from "./someLambdaHandler";
 
 const app = express();
 
@@ -63,29 +63,47 @@ app.listen(3000, () => {
 
 ## WrapperOptions
 
-Executes a lambda given the `options` object:
+Configure your lambdas with the the `options` object:
+
+```typescript
+export interface WrapperOptions {
+  functionName?: string;
+  resourcePath?: string;
+  profile?: string;
+  region?: string;
+  accountId?: string;
+  timeoutInSeconds?: number;
+  stage?: string;
+  isBase64Encoded?: boolean;
+  handler?: string; 
+  nodeModulesPath?: string;
+  identity?: CognitoIdentity;
+  clientContext?: ClientContext;
+  finalize?: () => void;
+  logger?: Logger;
+  defaultHeaders?: { [header: string]: string | number | boolean };
+}
+```
 
 | Key name | Description |
 | --- | --- |
-| `event`|requested event as a json object|
-| `lambdaPath`|requested path to the lambda function|
-| `lambdaFunc`|pass the lambda function. You cannot use it at the same time as lambdaPath|
-| `profilePath`|optional, path to your AWS credentials file|
-| `profileName`|optional, aws profile name. Must be used with |
-| `lambdaHandler`|optional handler name, default to `handler`|
-| `region`|optional, AWS region, default to `us-east-1`|
-| `callbackWaitsForEmptyEventLoop`|optional, default to `false`. Setting it to True will wait for an empty loop before returning.|
-| `timeoutMs`|optional, timeout, default to 3000 ms|
-| `environment`|optional, extra environment variables for the lambda|
-| `envfile`|optional, load an environment file before booting|
-| `envdestroy`|optional, destroy added environment on closing, default to false|
-| `verboseLevel`|optional, default 3. Level 2 dismiss handler() text, level 1 dismiss lambda-local text and level 0 dismiss also the result
-| `callback`|optional, lambda third parameter [callback][1]. When left out a Promise is returned|
-| `clientContext`|optional, used to populated clientContext property of lambda second parameter (context)
+| `functionName`|optional, defaults to `convert-lambda-to-express`. Placed in ENVIRONMENT, `event` and `context`|
+| `resourcePath`|optional, defaults to `/${proxy+}` Placed in ENVIRONMENT, `event` and `context`|
+| `profile`|optional, defaults to `default`. profile from `~/.aws/credential` to use. Adds tokens to AWS_TOKEN, AWS_SECRET_TOKEN, AWS_SESSION_TOKEN|
+| `region`|optional, AWS region, default to `us-east-1`. adds AWS_REGION to ENVIRONMENT|
+| `accountId`|optional, aws account id. Placed in ENVIRONMENT|
+| `timeoutInSeconds`|optional, default to `3`. watchdog timer that mimics lambda's timeout|
+| `stage`|optional, defaults to `dev`. Passed in `event`|
+| `isBase64Encoded`|optional, default to `false`. Passed in to handler `event`|
+| `handler`|optional, in `filename.exportName` format. Placed in ENVIRONMENT|
+| `nodeModulesPath`|optional, path to local node_modules folder. Placed in ENVIRONMENT|
+| `identity`|optional, CognitoIdentity object, see [DefinitelyTyped](https://github.com/DefinitelyTyped/DefinitelyTyped/blob/7b62f878cc218c8e94e6efafa55cea6796b501f7/types/aws-lambda/handler.d.ts#L124). Passed in `context`|
+| `clientContext`|optional, ClientContext object, see [DefinitelyTyped](https://github.com/DefinitelyTyped/DefinitelyTyped/blob/7b62f878cc218c8e94e6efafa55cea6796b501f7/types/aws-lambda/handler.d.ts#L129). Passed in `context`|
+| `finalize`|optional, clean-up function that is called at the end of each request|
+| `logger`|optional, winston Logger object. will default to the console object if not present|
+| `defaultHeaders`|optional, headers that should be applied to all responses|
 
 
 ## License
 
 This library is released under the MIT license.
-
-[1]: http://docs.aws.amazon.com/lambda/latest/dg/nodejs-prog-model-handler.html

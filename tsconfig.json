@@ -10,7 +10,6 @@
     "allowSyntheticDefaultImports": true,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-    "forceConsistentCasingInFileNames": true,
     "allowJs": false,
     "checkJs": false,
     "declaration": true,

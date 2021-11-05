@@ -1,12 +1,12 @@
 {
   "name": "convert-lambda-to-express",
-  "version": "1.0.0",
+  "version": "0.0.2",
   "description": "Wrapper to run lambda on express. Works great for running lambdas as an express server during development but is production ready. Developed to work in conjunction with matthewkeil/full-stack-pattern cdk construct.",
   "scripts": {
     "node": "node",
     "ts": "npm run node -- -r ts-node/register",
     "test": "jest",
-    "build": "tsc --project tsconfig.build.json"
+    "build": "rm -rf dist && tsc --project tsconfig.build.json"
   },
   "dependencies": {
     "aws-sdk": "^2.1017.0",
@@ -24,6 +24,9 @@
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "license": "MIT",
   "author": "Matthew Keil",
   "maintainers": [

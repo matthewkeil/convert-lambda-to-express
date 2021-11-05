@@ -11,19 +11,16 @@ export interface WrapperOptions {
   profile?: string;
   region?: string;
   accountId?: string;
-
-  logger?: Logger;
   timeoutInSeconds?: number;
   stage?: string;
   isBase64Encoded?: boolean;
   handler?: string; // in filename.exportName format
   nodeModulesPath?: string;
-  finalize?: () => void;
   identity?: CognitoIdentity;
   clientContext?: ClientContext;
-  defaultHeaders?: {
-    [header: string]: string | number | boolean;
-  };
+  finalize?: () => void;
+  logger?: Logger;
+  defaultHeaders?: { [header: string]: string | number | boolean };
 }
 
 import { resolve } from "path";
