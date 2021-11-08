@@ -1,28 +1,35 @@
+import { inspect } from "util";
 import {
   APIGatewayProxyResult,
   APIGatewayProxyWithCognitoAuthorizerHandler,
-  ClientContext,
-  CognitoIdentity,
 } from "aws-lambda";
 import { Logger } from "winston";
-export interface WrapperOptions {
-  // resourcePath?: string;
-  // profile?: string;
-  // accountId?: string;
-  
-  // stage?: string;
-  // isBase64Encoded?: boolean;
-  // logger?: Logger;
-  // defaultHeaders?: { [header: string]: string | number | boolean };
-  
-}
-
 import { Handler } from "express";
 import { SharedIniFileCredentials } from "aws-sdk";
-import { Context } from "./lib/Context";
-import { convertRequest } from "./lib/convertRequest";
-import { convertResponseFactory } from "./lib/convertResponse";
+import { Context, ContextOptions } from "./lib/Context";
+import { Event, EventOptions } from "./lib/Event";
+import {
+  convertResponseFactory,
+  ConvertResponseOptions,
+} from "./lib/convertResponse";
 
+export interface WrapperOptions
+  extends Omit<
+      ContextOptions,
+      "startTime" | "credentials" | "resolve" | "reject"
+    >,
+    Pick<
+      EventOptions,
+      | "accountId"
+      | "isBase64EncodedReq"
+      | "resourcePath"
+      | "stage"
+      | "stageVariables"
+    >,
+    ConvertResponseOptions {
+  profile?: string;
+  logger?: Logger;
+}
 export function wrapLambda(
   handler: APIGatewayProxyWithCognitoAuthorizerHandler,
   options: WrapperOptions = {}
@@ -36,61 +43,92 @@ export function wrapLambda(
     credentials = new SharedIniFileCredentials(credsOptions);
   } catch {
     // throws if no file, no profile named `options.profile` or no default profile
+    // just pass `credentials` object a undefined
   }
 
   const logger = options.logger ?? console;
 
   return async (req, res, next) => {
     try {
-      const convertResponse = convertResponseFactory(res, logger);
-      let _context: Context;
+      const startTime = Date.now();
+      const context = new Context({
+        ...options,
+        startTime,
+        credentials,
+      });
+      const event = new Event({
+        ...options,
+        req,
+        startTime,
+        awsRequestId: context.awsRequestId,
+      });
+      const convertResponse = convertResponseFactory({ res, logger, options });
 
+      /**
+       * handler function can return results via three methods. need to normalize
+       * and catch them all.
+       *
+       * 1) handler uses the deprecated methods and calls context.done(), context.fail(),
+       * or context.succeed(). Context was built so that context.done calls the
+       * resolve/reject and context.succeed and context.fail call context.done. need to
+       * pass resolve/reject to context object so they are available to the done function.
+       *
+       * 2) handler uses the call back function. pass in a callback function that
+       * uses resolve/reject from within the callback that we pass into the handler.
+       *
+       * 3) handler is an async function that returns a promise. then/catch the promise
+       *
+       */
       const response = await new Promise<APIGatewayProxyResult>(
-        (resolve, reject) => {
-          // only allow one resolution. which ever is first, callback
-          // or promise.then, wins and the other is ignored
+        (_resolve, _reject) => {
+          // only allow one resolution. which ever is first (callback, context.done,
+          // promise) wins and the other(s) is ignored
           let resolved = false;
-          function _resolve(results: APIGatewayProxyResult) {
-            _context._clearTimeout();
+          function resolve(results: APIGatewayProxyResult) {
+            context._clearTimeout();
             if (!resolved) {
               resolved = true;
-              resolve(results);
+              return _resolve(results);
             }
+            logger.log(
+              "error",
+              "resolve called multiple times. ignoring. results:"
+            );
+            logger.log("error", inspect(results, false, Infinity));
           }
-          function _reject(err: Error) {
-            _context._clearTimeout();
+          function reject(err: Error) {
+            context._clearTimeout();
             if (!resolved) {
               resolved = true;
-              reject(err);
+              return _reject(err);
             }
+            logger.log(
+              "error",
+              "reject called multiple times. ignoring. error:"
+            );
+            logger.log("error", inspect(err, false, Infinity));
           }
 
-          const { event, context } = convertRequest({
-            ...options,
-            nodeModulesPath,
-            req,
-            credentials,
-            resolve: _resolve,
-            reject: _reject,
-          });
-          _context = context;
+          // handle case #1 from comment above
+          context.resolve = resolve;
+          context.reject = reject;
 
           logger.log("info", "START RequestId: " + context.awsRequestId);
-          // pass in done callback function check if its used
           const voidOrPromise = handler(event, context, (err, res) => {
+            // handle case #2 from above
             if (err) {
-              return _reject(err instanceof Error ? err : new Error(err));
+              return reject(err instanceof Error ? err : new Error(err));
             }
-            _resolve(res ? res : { statusCode: 200, body: "" });
+            resolve(res ? res : { statusCode: 200, body: "" });
           });
 
-          // if promise is returned from handler then wait for it to resolve
+          // handle case #3 from above
           if (voidOrPromise) {
-            voidOrPromise.then(_resolve).catch(_reject);
+            voidOrPromise.then(resolve).catch(reject);
           }
         }
-        // if handler throws and error return as a handler error through context object
       ).catch((err) => {
+        // errors caught from the handler function
         convertResponse(err);
       });
 
@@ -98,7 +136,7 @@ export function wrapLambda(
         convertResponse(undefined, response);
       }
     } catch (err) {
-      // if server error building request
+      // if server error building Event, Context or convertResponse
       return next(err);
     }
   };

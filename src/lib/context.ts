@@ -1,4 +1,5 @@
 import os from "os";
+import { resolve } from "path";
 import { SharedIniFileCredentials } from "aws-sdk";
 import {
   Context as IContext,
@@ -7,8 +8,6 @@ import {
   APIGatewayProxyResult,
 } from "aws-lambda";
 import { generateRandomHex, TimeoutError } from "./utils.js";
-import { WrapperOptions } from "../index.js";
-import { resolve } from "path";
 
 type Resolve = (response: APIGatewayProxyResult) => void;
 type Reject = (err: Error) => void;
@@ -17,29 +16,30 @@ type Reject = (err: Error) => void;
  * Refer to this documentation:
  * https://docs.aws.amazon.com/lambda/latest/dg/nodejs-context.html
  */
-export interface ContextOptions extends WrapperOptions {
+export interface ContextOptions {
+  startTime?: number;
+  credentials?: SharedIniFileCredentials;
+  resolve?: Resolve;
+  reject?: Reject;
+
+  // passed through from WrapperOptions
   functionName?: string;
   functionVersion?: string;
   memorySize?: number;
   logGroupName?: string;
   logStreamName?: string;
-  startTime?: number;
   timeoutInSeconds?: number;
   identity?: CognitoIdentity;
   clientContext?: ClientContext;
   handler?: string; // in filename.exportName format
   nodeModulesPath?: string;
-  region?: string;  
-  credentials?: SharedIniFileCredentials;
+  region?: string;
+  accountId?: string;
   finalize?: () => void;
-  resolve?: Resolve;
-  reject?: Reject;
 }
 
 export class Context implements IContext {
   public functionName: string;
-  private startTime: number;
-  private timeout: number;
   public functionVersion: string;
   public memoryLimitInMB: string;
   public logGroupName: string;
@@ -52,7 +52,11 @@ export class Context implements IContext {
 
   private finalize: () => void;
 
-  private _timeout?: NodeJS.Timeout;
+  private _region: string;
+  private _accountId: string;
+  private _startTime: number;
+  private _timeout: number;
+  private __timeout?: NodeJS.Timeout;
   private _stopped = false;
 
   private _resolve?: Resolve;
@@ -72,19 +76,19 @@ export class Context implements IContext {
 
   constructor(private options: ContextOptions) {
     // setup time management
-    this.startTime = options.startTime ?? Date.now();
-    this.timeout = options?.timeoutInSeconds
+    this._startTime = options.startTime ?? Date.now();
+    this._timeout = options?.timeoutInSeconds
       ? options.timeoutInSeconds * 1000
       : 3000; // default lambda timeout
-    this._timeout = setTimeout(() => {
+    this.__timeout = setTimeout(() => {
       this.fail(
         new TimeoutError(
           "Task timed out after " +
-            (this.timeout / 1000).toFixed(2) +
+            (this._timeout / 1000).toFixed(2) +
             " seconds"
         )
       );
-    }, this.timeout);
+    }, this._timeout);
 
     // setup properties of IContext
     this.callbackWaitsForEmptyEventLoop = false; // not supported by this package
@@ -100,6 +104,8 @@ export class Context implements IContext {
     this.clientContext = options.clientContext;
 
     // setup Context internals
+    this._region = this.options.region ?? "us-east-1";
+    this._accountId = this.options.accountId ?? "123456789012";
     this.resolve = options.resolve;
     this.reject = options.reject;
     this.finalize = options.finalize ?? function () {};
@@ -166,19 +172,18 @@ export class Context implements IContext {
 
   public getRemainingTimeInMillis(): number {
     const now = new Date().getTime();
-    return this.timeout + this.startTime - now;
+    return this._timeout + this._startTime - now;
   }
 
   public _clearTimeout() {
-    if (this._timeout) {
-      clearTimeout(this._timeout);
-      this._timeout = undefined;
+    if (this.__timeout) {
+      clearTimeout(this.__timeout);
+      this.__timeout = undefined;
     }
   }
 
   public _buildExecutionEnv() {
     const env: { [key: string]: string } = {};
-    const defaultRegion = "us-east-1";
     const pwd = process.cwd();
 
     // base configuration
@@ -195,8 +200,8 @@ export class Context implements IContext {
     env.AWS_LAMBDA_LOG_STREAM_NAME = this.logStreamName;
 
     // information so aws-sdk can run as it would normally
-    env.AWS_REGION = this.options.region ?? defaultRegion;
-    env.AWS_DEFAULT_REGION = this.options.region ?? defaultRegion;
+    env.AWS_REGION = this._region;
+    env.AWS_DEFAULT_REGION = this._region;
     env.AWS_ACCESS_KEY_ID =
       `${this.options.credentials?.accessKeyId}` ??
       process.env.AWS_ACCESS_KEY_ID;
@@ -228,9 +233,8 @@ export class Context implements IContext {
       "arn",
       "aws",
       "lambda",
-      process.env.AWS_REGION,
-      process.env.AWS_ACCOUNT_ID ||
-        Math.round(Math.random() * 1000000000000).toString(),
+      this._region,
+      this._accountId || Math.round(Math.random() * 1000000000000).toString(),
       "function",
       this.functionName,
       this.functionVersion,

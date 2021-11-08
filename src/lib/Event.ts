@@ -1,5 +1,4 @@
-import e, { Request } from "express";
-import {} from "querystring";
+import { Request } from "express";
 import {
   APIGatewayEventRequestContextWithAuthorizer,
   APIGatewayProxyCognitoAuthorizer,
@@ -11,19 +10,20 @@ import {
   APIGatewayProxyEventStageVariables,
   APIGatewayProxyWithCognitoAuthorizerEvent,
 } from "aws-lambda";
-import { generateRandomHex } from "./lib/utils";
+import { generateRandomHex } from "./utils";
 
 const DEFAULT_RESOURCE_PATH = "/${proxy+}";
 
 export interface EventOptions {
   req: Request;
   awsRequestId: string;
-  resource?: string;
-  isBase64Encoded?: boolean;
-  stageVariables?: APIGatewayProxyEventStageVariables;
-  accountId?: string;
-  stage?: string;
   startTime?: number;
+  // passed through from WrapperOptions
+  accountId?: string;
+  isBase64EncodedReq?: boolean;
+  resourcePath?: string;
+  stage?: string;
+  stageVariables?: APIGatewayProxyEventStageVariables;
 }
 
 export class Event implements APIGatewayProxyWithCognitoAuthorizerEvent {
@@ -132,7 +132,7 @@ export class Event implements APIGatewayProxyWithCognitoAuthorizerEvent {
 
   constructor(private options: EventOptions) {
     const { req } = this.options;
-    const resourcePath = this.options.resource ?? DEFAULT_RESOURCE_PATH;
+    const resourcePath = this.options.resourcePath ?? DEFAULT_RESOURCE_PATH;
 
     this.body = !req.body
       ? null
@@ -144,7 +144,7 @@ export class Event implements APIGatewayProxyWithCognitoAuthorizerEvent {
     this.pathParameters = req.params;
     this.stageVariables = this.options.stageVariables ?? null;
     this.resource = resourcePath;
-    this.isBase64Encoded = this.options.isBase64Encoded ?? false;
+    this.isBase64Encoded = this.options.isBase64EncodedReq ?? false;
 
     this.headers = Event.buildRequestHeaders(req.headers);
     this.multiValueHeaders = Event.buildRequestMultiValueHeaders(req.headers);
