@@ -83,13 +83,14 @@ export function convertRequest({
     body: req.body,
     resource: options.resourcePath ?? defaultWrapperOptions.resourcePath,
     httpMethod: req.method,
-    isBase64Encoded: options.isBase64Encoded ?? false,
     path: req.path,
     pathParameters: req.params,
     headers: buildRequestHeaders(req.headers),
     multiValueHeaders: {},
     queryStringParameters: buildQueryString(req.query),
     multiValueQueryStringParameters: {},
+    isBase64Encoded: options.isBase64Encoded ?? false,
+    
     stageVariables: null,
     requestContext: {
       accountId: options.accountId ?? "123456789012",

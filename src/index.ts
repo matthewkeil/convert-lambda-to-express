@@ -6,24 +6,17 @@ import {
 } from "aws-lambda";
 import { Logger } from "winston";
 export interface WrapperOptions {
-  functionName?: string;
-  resourcePath?: string;
-  profile?: string;
-  region?: string;
-  accountId?: string;
-  timeoutInSeconds?: number;
-  stage?: string;
-  isBase64Encoded?: boolean;
-  handler?: string; // in filename.exportName format
-  nodeModulesPath?: string;
-  identity?: CognitoIdentity;
-  clientContext?: ClientContext;
-  finalize?: () => void;
-  logger?: Logger;
-  defaultHeaders?: { [header: string]: string | number | boolean };
+  // resourcePath?: string;
+  // profile?: string;
+  // accountId?: string;
+  
+  // stage?: string;
+  // isBase64Encoded?: boolean;
+  // logger?: Logger;
+  // defaultHeaders?: { [header: string]: string | number | boolean };
+  
 }
 
-import { resolve } from "path";
 import { Handler } from "express";
 import { SharedIniFileCredentials } from "aws-sdk";
 import { Context } from "./lib/Context";
@@ -45,8 +38,6 @@ export function wrapLambda(
     // throws if no file, no profile named `options.profile` or no default profile
   }
 
-  const nodeModulesPath =
-    options.nodeModulesPath ?? resolve(require.resolve("express"), "..", "..");
   const logger = options.logger ?? console;
 
   return async (req, res, next) => {
