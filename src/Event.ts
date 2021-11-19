@@ -15,9 +15,9 @@ import { generateRandomHex } from "./utils";
 const DEFAULT_RESOURCE_PATH = "/${proxy+}";
 
 export interface EventOptions {
-  req: Request;
   awsRequestId: string;
   startTime?: number;
+  req?: Request;
   // passed through from WrapperOptions
   accountId?: string;
   isBase64EncodedReq?: boolean;
@@ -133,23 +133,27 @@ export class Event implements APIGatewayProxyWithCognitoAuthorizerEvent {
   constructor(private options: EventOptions) {
     const { req } = this.options;
     const resourcePath = this.options.resourcePath ?? DEFAULT_RESOURCE_PATH;
+    const path = req?.path ?? "/";
+    const method = req?.method ?? "GET";
 
-    this.body = !req.body
+    this.body = !req?.body
       ? null
-      : typeof req.body === "string"
-      ? req.body
-      : JSON.stringify(req.body);
-    this.path = req.path;
-    this.httpMethod = req.method;
-    this.pathParameters = req.params;
+      : typeof req?.body === "string"
+      ? req?.body
+      : JSON.stringify(req?.body);
+    this.path = path;
+    this.httpMethod = method;
+    this.pathParameters = req?.params ?? null;
     this.stageVariables = this.options.stageVariables ?? null;
     this.resource = resourcePath;
     this.isBase64Encoded = this.options.isBase64EncodedReq ?? false;
 
-    this.headers = Event.buildRequestHeaders(req.headers);
-    this.multiValueHeaders = Event.buildRequestMultiValueHeaders(req.headers);
+    this.headers = Event.buildRequestHeaders(req?.headers ?? {});
+    this.multiValueHeaders = Event.buildRequestMultiValueHeaders(
+      req?.headers ?? {}
+    );
     this.multiValueQueryStringParameters = Event.buildMultiValueQueryString(
-      req.query
+      req?.query ?? {}
     );
     this.queryStringParameters = Event.buildQueryString(
       this.multiValueQueryStringParameters
@@ -160,9 +164,9 @@ export class Event implements APIGatewayProxyWithCognitoAuthorizerEvent {
     this.requestContext = {
       accountId: this.options.accountId ?? "123456789012",
       apiId: "express",
-      protocol: req.protocol,
-      httpMethod: req.method,
-      path: req.path,
+      protocol: req?.protocol ?? "https",
+      httpMethod: method,
+      path: path,
       stage: options.stage ?? "dev",
       requestId: this.options.awsRequestId,
       requestTimeEpoch: startTime,

@@ -7,7 +7,7 @@ import {
   ClientContext,
   APIGatewayProxyResult,
 } from "aws-lambda";
-import { generateRandomHex, TimeoutError } from "./utils.js";
+import { generateRandomHex, TimeoutError } from "./utils";
 
 type Resolve = (response: APIGatewayProxyResult) => void;
 type Reject = (err: Error) => void;
@@ -50,29 +50,18 @@ export class Context implements IContext {
   public clientContext?: ClientContext;
   public callbackWaitsForEmptyEventLoop: boolean;
 
-  private finalize: () => void;
-
+  
   private _region: string;
   private _accountId: string;
   private _startTime: number;
   private _timeout: number;
   private __timeout?: NodeJS.Timeout;
   private _stopped = false;
+  private __finalize: () => void;
+  private _finalized = false;
 
-  private _resolve?: Resolve;
-  get resolve() {
-    return this._resolve;
-  }
-  set resolve(resolve: undefined | Resolve) {
-    this._resolve = resolve;
-  }
-  private _reject?: Reject;
-  get reject() {
-    return this._reject;
-  }
-  set reject(reject: undefined | Reject) {
-    this._reject = reject;
-  }
+  public _resolve?: Resolve;
+  public _reject?: Reject;
 
   constructor(private options: ContextOptions) {
     // setup time management
@@ -106,9 +95,9 @@ export class Context implements IContext {
     // setup Context internals
     this._region = this.options.region ?? "us-east-1";
     this._accountId = this.options.accountId ?? "123456789012";
-    this.resolve = options.resolve;
-    this.reject = options.reject;
-    this.finalize = options.finalize ?? function () {};
+    this._resolve = options.resolve;
+    this._reject = options.reject;
+    this.__finalize = options.finalize ?? function () {};
     for (const [key, value] of Object.entries(this._buildExecutionEnv())) {
       process.env[key] = value;
     }
@@ -122,8 +111,6 @@ export class Context implements IContext {
       return;
     }
     this._stopped = true;
-    this._clearTimeout();
-    this.finalize();
 
     let error: Error | undefined;
     if (typeof err === "string") {
@@ -132,34 +119,13 @@ export class Context implements IContext {
       error = err;
     }
     if (error) {
-      if (this.reject) {
-        return this.reject(error);
+      if (this._reject) {
+        return this._reject(error);
       }
       throw error;
     }
 
-    let response: APIGatewayProxyResult | undefined;
-    if (typeof messageOrObject === "string") {
-      response = {
-        body: messageOrObject,
-        statusCode: 200,
-      };
-    } else if (
-      typeof messageOrObject === "object" &&
-      messageOrObject !== null
-    ) {
-      response = {
-        body: JSON.stringify(messageOrObject),
-        statusCode: 200,
-      };
-    }
-
-    const _response = response ? response : { statusCode: 200, body: "" };
-    if (this.resolve) {
-      return this.resolve(_response);
-    }
-
-    return _response;
+    return this._resolve ? this._resolve(messageOrObject) : messageOrObject;
   }
 
   public fail(err: Error | string): void {
@@ -179,6 +145,13 @@ export class Context implements IContext {
     if (this.__timeout) {
       clearTimeout(this.__timeout);
       this.__timeout = undefined;
+    }
+  }
+
+  public _finalize() {
+    if (!this._finalized) {
+      this.__finalize();
+      this._finalized = true;
     }
   }
 

@@ -23,8 +23,8 @@
     "noImplicitThis": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
-    "noUnusedParameters": true,
-    "noUnusedLocals": true,
+    // "noUnusedParameters": true,
+    // "noUnusedLocals": true,
     "typeRoots": ["node_modules/@types"],
     "types": ["node", "jest"]
   }
