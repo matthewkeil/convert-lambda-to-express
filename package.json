@@ -6,6 +6,7 @@
     "node": "node",
     "ts": "npm run node -- -r ts-node/register",
     "test": "jest",
+    "lint": "eslint --fix .",
     "build": "rm -rf dist && tsc --project tsconfig.build.json"
   },
   "dependencies": {
@@ -24,7 +25,15 @@
     "@types/jest": "^27.0.2",
     "@types/morgan": "^1.9.3",
     "@types/node": "^15.12.4",
+    "@typescript-eslint/eslint-plugin": "^5.4.0",
+    "@typescript-eslint/parser": "^5.4.0",
+    "eslint": "^8.3.0",
+    "eslint-config-prettier": "^8.3.0",
+    "eslint-import-resolver-typescript": "^2.5.0",
+    "eslint-plugin-import": "^2.25.3",
+    "eslint-plugin-prettier": "^4.0.0",
     "jest": "^27.3.1",
+    "prettier": "^2.4.1",
     "ts-jest": "^27.0.7",
     "ts-node": "^10.4.0",
     "typescript": "^4.3.4"

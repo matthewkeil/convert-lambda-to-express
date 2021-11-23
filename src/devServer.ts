@@ -1,22 +1,24 @@
-import { watch } from "fs";
-import { resolve, sep } from "path";
-import { createServer } from "http";
-import morgan from "morgan";
-import helmet from "helmet";
-import cors, { CorsOptions } from "cors";
-import express, { Handler } from "express";
-import { HttpMethod } from "./utils";
-import { wrapLambda, WrapperOptions } from "./wrapLambda";
+/* eslint-disable no-console */
+import { watch } from 'fs';
+import { resolve } from 'path';
+import { createServer } from 'http';
+import type { APIGatewayProxyWithCognitoAuthorizerHandler } from 'aws-lambda';
+import morgan from 'morgan';
+import helmet from 'helmet';
+import cors, { CorsOptions } from 'cors';
+import express, { Handler } from 'express';
+import { HttpMethod } from './utils';
+import { wrapLambda, WrapperOptions } from './wrapLambda';
 
-type MorganOption = "combined" | "common" | "dev" | "short" | "tiny";
+type MorganOption = 'combined' | 'common' | 'dev' | 'short' | 'tiny';
 
 type HandlerEnvironment = { [key: string]: string };
 
 export interface HandlerConfig extends WrapperOptions {
   method: HttpMethod;
-  handler: string;
   resourcePath: string;
-  codeDirectory: string;
+  handler: string;
+  codeDirectory?: string;
   environment?: HandlerEnvironment;
 }
 
@@ -29,39 +31,43 @@ export interface DevServerConfig extends WrapperOptions {
   helmetOptions?: Parameters<typeof helmet>[0];
   middleware?: Handler[];
   verbose?: boolean;
+  codeDirectory?: string;
 }
 
-const overwrittenKeys: string[] = [];
 const handlerDefinitions: HandlerConfig[] = [];
 
-const watchPaths: string[] = [];
-function watchCodePath(path: string) {
-  for (const watched of watchPaths) {
+export const watchPaths: string[] = [];
+export function watchCodePath(path: string) {
+  let pathIsShorter = false;
+  for (let index = 0; index < watchPaths.length; index++) {
+    const watched = watchPaths[index] as string;
     if (watched.startsWith(path)) {
-      // path is shorter root path so replace with root
-      const index = watchPaths.indexOf(watched);
-      watchPaths[index] = path;
-      return;
+      if (!pathIsShorter) {
+        // path is shorter root path so replace with root
+        watchPaths[index] = path;
+        pathIsShorter = true;
+        continue;
+      }
+      // already watching root, remove entry
+      watchPaths.splice(index, 1);
     } else if (path.startsWith(watched)) {
       // already watching root
       return;
     }
   }
-  // if haven't returned yet then path is not part of the same file tree
-  watchPaths.push(path);
+
+  if (!pathIsShorter) {
+    // if path is not shorter and not already watched yet then path is not part of the same file tree
+    watchPaths.push(path);
+  }
 }
 
 export function addToDevServer(config: HandlerConfig) {
   handlerDefinitions.push(config);
 }
 
-function loadEnvironment({
-  verbose,
-  environment,
-}: {
-  verbose?: boolean;
-  environment?: HandlerEnvironment;
-}) {
+export const overwrittenKeys: string[] = [];
+export function loadEnvironment({ verbose, environment }: { verbose?: boolean; environment?: HandlerEnvironment }) {
   if (!environment) {
     return;
   }
@@ -76,44 +82,36 @@ function loadEnvironment({
   }
 }
 
-function getHandler(config: HandlerConfig & { verbose?: boolean }) {
-  const { codeDirectory, handler, method, resourcePath, environment, verbose } =
-    config;
-
+interface GetHandlerConfig {
+  handler: string;
+  codeDirectory: string;
+}
+export function getHandler({ codeDirectory, handler }: GetHandlerConfig) {
   watchCodePath(codeDirectory);
 
-  const handlerPathSegments = handler.split("/");
-  const filenameAndExport = handlerPathSegments.pop()?.split(".");
+  const handlerPathSegments = handler.split('/');
+  const filenameAndExport = handlerPathSegments.pop()?.split('.');
   if (!Array.isArray(filenameAndExport) || filenameAndExport.length !== 2) {
     throw new Error(`handler ${handler} is not valid`);
   }
   const [filename, exportName] = filenameAndExport as [string, string];
-  const filePath = require.resolve(
-    resolve(...codeDirectory.split(sep), ...handlerPathSegments, filename)
-  );
 
-  /**
-   * load environment from definition provided in template to lambda
-   * will attempt to give correct values during parse phase of require below.
-   * if process.env.KEY is used in the body of the handler, instead of proxied
-   * at the head like `const tableName = process.env.TABLE_NAME` as the head
-   * the value may be incorrect at runtime.
-   */
-  loadEnvironment({ verbose, environment });
-
-  if (verbose) {
-    console.log({
-      method,
-      resourcePath,
-      filePath,
-    });
+  const filePath = resolve(codeDirectory, ...handlerPathSegments, filename);
+  const resolved = require.resolve(filePath);
+  if (require.cache[resolved]) {
+    delete require.cache[resolved]; // eslint-disable-line @typescript-eslint/no-dynamic-delete
   }
 
-  if (require.cache[filePath]) {
-    delete require.cache[filePath];
-  }
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  return wrapLambda(require(filePath)[exportName], config);
+  return {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    handlerFunction: require(resolved)[exportName] as APIGatewayProxyWithCognitoAuthorizerHandler,
+    filePath: resolved,
+    exportName
+  };
+}
+
+export function convertToExpressPath(resourcePath: string) {
+  return resourcePath.replace(/\{/g, ':').replace(/\}/g, '');
 }
 
 function buildDevServer({
@@ -123,15 +121,16 @@ function buildDevServer({
   corsOptions,
   helmetOptions,
   middleware,
+  codeDirectory: globalCodeDirectory
 }: DevServerConfig = {}) {
   const devServer = express();
-  devServer.use(morgan(morganSetting ?? prod ? "combined" : "dev"));
+  devServer.use(morgan(morganSetting ?? prod ? 'combined' : 'dev'));
   devServer.use(
     cors(
       corsOptions ?? {
-        origin: "*",
-        methods: "*",
-        allowedHeaders: "*",
+        origin: '*',
+        methods: '*',
+        allowedHeaders: '*'
       }
     )
   );
@@ -143,41 +142,54 @@ function buildDevServer({
     }
   }
 
-  for (const {
-    codeDirectory,
-    resourcePath,
-    method,
-    handler,
-    environment,
-  } of handlerDefinitions) {
+  for (const handlerConfig of handlerDefinitions) {
+    const { environment, method, resourcePath, handler } = handlerConfig;
+    const path = convertToExpressPath(resourcePath);
     const _method = method.toLowerCase() as Lowercase<HttpMethod>;
-    devServer[_method](
-      resourcePath,
-      getHandler({
-        handler,
-        method,
-        resourcePath,
-        codeDirectory,
-        environment,
-        verbose,
-      })
-    );
+
+    /**
+     * load environment from definition provided in template to lambda
+     * will attempt to give correct values during parse phase of require below.
+     * if process.env.KEY is used in the body of the handler, instead of proxied
+     * at the head like `const tableName = process.env.TABLE_NAME` as the head
+     * the value may be incorrect at runtime.
+     */
+    loadEnvironment({ verbose, environment });
+
+    const codeDirectory = handlerConfig.codeDirectory ?? globalCodeDirectory;
+    if (!codeDirectory) {
+      throw new Error(`codeDirectory is required for ${handlerConfig.handler}`);
+    }
+    const { exportName, filePath, handlerFunction } = getHandler({
+      codeDirectory,
+      handler
+    });
+    const wrappedHandler = wrapLambda(handlerFunction, handlerConfig);
+    devServer[_method](path, wrappedHandler);
+
+    if (verbose) {
+      console.log({
+        method: _method,
+        path,
+        exportName,
+        filePath
+      });
+    }
   }
 
-  if (overwrittenKeys.length) {
-    const keyList = overwrittenKeys.map((key) => `> ${key}\n`);
-    console.log(`The following process.env.KEYS were overwritten. The 
+  if (overwrittenKeys.length && verbose) {
+    console.log(`The following process.env.KEYS were overwritten. The
 same key was loaded in multiple handler files and there may be
-undesired effects.  
+undesired effects.
 
 The values should be correct if you proxied the values to separate
-values at the head of each file, however if you use process.env.KEY
+variables at the head of each file, however if you use process.env.KEY
 during runtime, and not just during the parse phase, there will be problems
 as the values for the keys listed below may be different than anticipated.
 
 The following are the keys that may have been overwritten:
 >
-> ${keyList}
+${overwrittenKeys.map(key => `> process.env.${key}`).join('\n')}
 >`);
   }
 
@@ -186,7 +198,7 @@ The following are the keys that may have been overwritten:
 
 export function getDevServer(config?: DevServerConfig) {
   if (!handlerDefinitions.length) {
-    throw new Error("no handlers added to server");
+    throw new Error('no handlers added to server');
   }
   return buildDevServer(config);
 }
@@ -202,17 +214,32 @@ export function startDevServer(config: DevServerConfig = {}) {
       console.log(`listening on port: ${port}`);
     });
 
-    return { server, app };
+    return { app, server };
   }
 
-  let { server, app } = startServer();
+  let { app, server } = startServer();
 
   if (hotReload) {
     for (const path of watchPaths) {
+      let debounce: NodeJS.Timeout | undefined;
       watch(path, { recursive: true }, () => {
-        server.close(() => {
-          ({ server } = startServer());
-        });
+        // debounce server restarts to once a second
+        if (!debounce) {
+          debounce = setTimeout(() => {
+            if (debounce) {
+              // if timeout still exists during tick clear it
+              clearTimeout(debounce);
+            }
+            debounce = undefined;
+          }, 1000);
+
+          server.close(err => {
+            if (err) {
+              throw err;
+            }
+            ({ app, server } = startServer());
+          });
+        }
       });
     }
   }

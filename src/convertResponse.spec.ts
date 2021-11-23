@@ -1,11 +1,6 @@
-import { APIGatewayProxyResult } from "aws-lambda";
-import { Response } from "express";
-import {
-  coerceBody,
-  convertResponseFactory,
-  ConvertResponseOptions,
-  setResponseHeaders,
-} from "./convertResponse";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { APIGatewayProxyResult } from 'aws-lambda';
+import { coerceBody, convertResponseFactory, ConvertResponseOptions, setResponseHeaders } from './convertResponse';
 
 class MockResponse {
   header = jest.fn();
@@ -15,184 +10,149 @@ class MockResponse {
   json = jest.fn();
 }
 
-describe("convertResponse()", () => {
+describe('convertResponse()', () => {
   let res: MockResponse;
   let logger: Console;
   beforeEach(() => {
     res = new MockResponse();
     logger = {
       info: jest.fn(),
-      error: jest.fn(),
+      error: jest.fn()
     } as any;
   });
-  const defaultContentType = "application/json";
+  const defaultContentType = 'application/json';
   const options: ConvertResponseOptions = {
     defaultResponseHeaders: {
-      "content-type": defaultContentType,
-    },
+      'content-type': defaultContentType
+    }
   };
   const defaultResponse: APIGatewayProxyResult = {
     statusCode: 200,
-    body: '{"default":"body"}',
+    body: '{"default":"body"}'
   };
-  const responseContentType = "application/xml";
+  const responseContentType = 'application/xml';
   const responseWithContentType: APIGatewayProxyResult = {
     statusCode: 200,
-    body: "",
+    body: '',
     headers: {
-      "content-type": responseContentType,
-    },
+      'content-type': responseContentType
+    }
   };
-  const multiValueResponseType = ["no-cache", "no-store", "must-revalidate"];
+  const multiValueResponseType = ['no-cache', 'no-store', 'must-revalidate'];
   const multiValueResponse: APIGatewayProxyResult = {
     statusCode: 200,
-    body: "",
+    body: '',
     headers: {
-      "content-type": responseContentType,
+      'content-type': responseContentType
     },
     multiValueHeaders: {
-      "cache-control": multiValueResponseType,
-    },
+      'cache-control': multiValueResponseType
+    }
   };
-  describe("setResponseHeaders", () => {
-    it("should set default headers correctly", () => {
+  describe('setResponseHeaders', () => {
+    it('should set default headers correctly', () => {
       setResponseHeaders({
         res: res as any,
         options,
-        response: defaultResponse,
+        response: defaultResponse
       });
-      expect(res.header).toHaveBeenCalledWith(
-        "content-type",
-        defaultContentType
-      );
+      expect(res.header).toHaveBeenCalledWith('content-type', defaultContentType);
     });
-    it("should set response headers correctly", () => {
+    it('should set response headers correctly', () => {
       setResponseHeaders({
         res: res as any,
-        response: responseWithContentType,
+        response: responseWithContentType
       });
-      expect(res.header).toHaveBeenCalledWith(
-        "content-type",
-        responseContentType
-      );
+      expect(res.header).toHaveBeenCalledWith('content-type', responseContentType);
     });
-    it("should set response multi-value headers correctly", () => {
+    it('should set response multi-value headers correctly', () => {
       setResponseHeaders({ res: res as any, response: multiValueResponse });
-      expect(res.header).toHaveBeenNthCalledWith(
-        1,
-        "content-type",
-        responseContentType
-      );
-      expect(res.header).toHaveBeenNthCalledWith(
-        2,
-        "cache-control",
-        multiValueResponseType.join(", ")
-      );
+      expect(res.header).toHaveBeenNthCalledWith(1, 'content-type', responseContentType);
+      expect(res.header).toHaveBeenNthCalledWith(2, 'cache-control', multiValueResponseType.join(', '));
     });
-    it("should set default headers first and overwrite with specific headers", () => {
+    it('should set default headers first and overwrite with specific headers', () => {
       setResponseHeaders({
         res: res as any,
         options,
-        response: responseWithContentType,
+        response: responseWithContentType
       });
-      expect(res.header).toHaveBeenNthCalledWith(
-        1,
-        "content-type",
-        defaultContentType
-      );
-      expect(res.header).toHaveBeenNthCalledWith(
-        2,
-        "content-type",
-        responseContentType
-      );
+      expect(res.header).toHaveBeenNthCalledWith(1, 'content-type', defaultContentType);
+      expect(res.header).toHaveBeenNthCalledWith(2, 'content-type', responseContentType);
     });
   });
 
-  describe("coerceBody", () => {
-    it("should handle string", () => {
-      const coerced = coerceBody("hello");
-      expect(coerced).toEqual("hello");
+  describe('coerceBody', () => {
+    it('should handle string', () => {
+      const coerced = coerceBody('hello');
+      expect(coerced).toEqual('hello');
     });
-    it("should handle number", () => {
+    it('should handle number', () => {
       const coerced = coerceBody(1234);
-      expect(coerced).toEqual("1234");
+      expect(coerced).toEqual('1234');
     });
-    it("should handle boolean", () => {
+    it('should handle boolean', () => {
       const coerced = coerceBody(true);
-      expect(coerced).toEqual("true");
+      expect(coerced).toEqual('true');
     });
-    it("should handle bigint", () => {
-      const intString = "90071992547409911234";
+    it('should handle bigint', () => {
+      const intString = '90071992547409911234';
       const coerced = coerceBody(BigInt(intString));
       expect(coerced).toEqual(intString);
     });
-    it("should handle object", () => {
-      const coerced = coerceBody({ some: "object" });
+    it('should handle object', () => {
+      const coerced = coerceBody({ some: 'object' });
       expect(coerced).toEqual('{"some":"object"}');
     });
-    it("should handle array", () => {
-      const coerced = coerceBody(["some", "array"]);
+    it('should handle array', () => {
+      const coerced = coerceBody(['some', 'array']);
       expect(coerced).toEqual('["some","array"]');
     });
-    it("should handle buffer", () => {
-      const coerced = coerceBody(Buffer.from("hello"));
-      expect(coerced).toEqual("hello");
+    it('should handle buffer', () => {
+      const coerced = coerceBody(Buffer.from('hello'));
+      expect(coerced).toEqual('hello');
     });
-    it("should handle function", () => {
+    it('should handle function', () => {
       const func = function (param: any) {
         return param;
       };
       const coerced = coerceBody(func);
       expect(coerced).toEqual(func.toString());
     });
-    it("should handle null", () => {
-      expect(() => coerceBody(null)).toThrowError(
-        "handler returned nullish response: null"
-      );
+    it('should handle null', () => {
+      expect(() => coerceBody(null)).toThrowError('handler returned nullish response: null');
     });
-    it("should handle undefined", () => {
-      expect(() => coerceBody(undefined)).toThrowError(
-        "handler returned nullish response: undefined"
-      );
+    it('should handle undefined', () => {
+      expect(() => coerceBody(undefined)).toThrowError('handler returned nullish response: undefined');
     });
-    it("should handle odd objects", () => {
+    it('should handle odd objects', () => {
       const oddObject = function (param: any) {
         return param;
       };
       oddObject.toString = 0;
-      expect(() => coerceBody(oddObject)).toThrowError(
-        "could not coerce return value to string"
-      );
+      expect(() => coerceBody(oddObject)).toThrowError('could not coerce return value to string');
     });
   });
 
-  describe("convertResponseFactory", () => {
-    let convertResponse: (
-      err?: Error,
-      response?: APIGatewayProxyResult
-    ) => void;
+  describe('convertResponseFactory', () => {
+    let convertResponse: (err?: Error, response?: APIGatewayProxyResult) => void;
     beforeEach(() => {
       convertResponse = convertResponseFactory({
         res: res as any,
         logger: logger as any,
-        options,
+        options
       });
     });
 
-    it("should return a function", () => {
-      expect(typeof convertResponse).toEqual("function");
+    it('should return a function', () => {
+      expect(typeof convertResponse).toEqual('function');
       expect(convertResponse.length).toEqual(2);
     });
 
-    it("should return a valid response", () => {
+    it('should return a valid response', () => {
       convertResponse(undefined, defaultResponse);
-      expect(res.header).toHaveBeenNthCalledWith(
-        1,
-        "content-type",
-        defaultContentType
-      );
+      expect(res.header).toHaveBeenNthCalledWith(1, 'content-type', defaultContentType);
       expect(logger.info).toBeCalledTimes(2);
-      expect(logger.info).toHaveBeenNthCalledWith(1, "End - Result:");
+      expect(logger.info).toHaveBeenNthCalledWith(1, 'End - Result:');
       expect(logger.info).toHaveBeenNthCalledWith(2, defaultResponse.body);
       expect(res.send).toBeCalledTimes(1);
       expect(res.send).toHaveBeenCalledWith(defaultResponse.body);
@@ -202,25 +162,25 @@ describe("convertResponse()", () => {
       expect(res.end).toHaveBeenCalledWith();
     });
 
-    it("should set a default statusCode", () => {
+    it('should set a default statusCode', () => {
       convertResponse(undefined, {
-        body: "hello",
-        statusCode: undefined,
+        body: 'hello',
+        statusCode: undefined
       } as any);
       expect(res.status).toBeCalledTimes(1);
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
-    it("should respond with passed errors", () => {
-      const err = new Error("there was an error");
+    it('should respond with passed errors', () => {
+      const err = new Error('there was an error');
       convertResponse(err);
       const errResponse = {
         errorMessage: err.message,
         errorType: err.name,
-        trace: err.stack?.split("\n"),
+        trace: err.stack?.split('\n')
       };
       expect(logger.error).toBeCalledTimes(2);
-      expect(logger.error).toHaveBeenNthCalledWith(1, "End - Error:");
+      expect(logger.error).toHaveBeenNthCalledWith(1, 'End - Error:');
       expect(logger.error).toHaveBeenNthCalledWith(2, errResponse);
       expect(res.status).toBeCalledTimes(1);
       expect(res.status).toHaveBeenCalledWith(500);
@@ -228,14 +188,12 @@ describe("convertResponse()", () => {
       expect(res.json).toHaveBeenCalledWith(errResponse);
     });
 
-    it("should respond with error if no response", () => {
+    it('should respond with error if no response', () => {
       try {
         convertResponse();
       } catch (err) {
         expect(err).toBeInstanceOf(TypeError);
-        expect((err as TypeError).message).toEqual(
-          "no response returned from handler"
-        );
+        expect((err as TypeError).message).toEqual('no response returned from handler');
       }
     });
   });

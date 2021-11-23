@@ -1,53 +1,53 @@
-import util from "util";
-import { IncomingHttpHeaders } from "http";
-import { Response } from "express";
-import { APIGatewayProxyResult } from "aws-lambda";
-import { Logger } from "winston";
+import { IncomingHttpHeaders } from 'http';
+import { Response } from 'express';
+import { Logger } from 'winston';
 
 type DefaultHeaders = {
-  [key in keyof IncomingHttpHeaders]: Parameters<Response["header"]>[1];
+  [key in keyof IncomingHttpHeaders]: Parameters<Response['header']>[1];
 };
 export interface ConvertResponseOptions {
   defaultResponseHeaders?: DefaultHeaders;
 }
 
+function isObject(response: unknown): response is Record<string, unknown> {
+  if (typeof response === 'object' && response !== null) {
+    return true;
+  }
+  return false;
+}
+
 export function setResponseHeaders({
   res,
   response,
-  options,
+  options
 }: {
   res: Response;
-  response?: APIGatewayProxyResult;
+  response?: unknown;
   options?: ConvertResponseOptions;
 }) {
   if (options?.defaultResponseHeaders) {
-    for (const [name, value] of Object.entries(
-      options?.defaultResponseHeaders
-    )) {
+    for (const [name, value] of Object.entries(options?.defaultResponseHeaders)) {
       res.header(name, value);
     }
   }
 
-  if (response?.headers) {
-    for (const [name, value] of Object.entries(response.headers)) {
-      res.header(name, `${value}`);
+  if (isObject(response)) {
+    if (isObject(response.headers)) {
+      for (const [name, value] of Object.entries(response.headers)) {
+        res.header(name, `${value}`);
+      }
     }
-  }
 
-  if (response?.multiValueHeaders) {
-    for (const [name, value] of Object.entries(response.multiValueHeaders)) {
-      res.header(name, value.map((val) => `${val}`).join(", "));
+    if (isObject(response.multiValueHeaders)) {
+      for (const [name, value] of Object.entries(response.multiValueHeaders)) {
+        res.header(name, Array.isArray(value) ? value.map(val => `${val}`).join(', ') : `${value}`);
+      }
     }
   }
 }
 
 export function coerceBody(body: unknown): string {
-  if (
-    typeof body === "string" ||
-    typeof body === "number" ||
-    typeof body === "boolean" ||
-    typeof body === "bigint"
-  ) {
+  if (typeof body === 'string' || typeof body === 'number' || typeof body === 'boolean' || typeof body === 'bigint') {
     return `${body}`;
   }
 
@@ -57,19 +57,19 @@ export function coerceBody(body: unknown): string {
 
   if (
     // cases of Object or Array
-    typeof body === "object" &&
+    typeof body === 'object' &&
     body !== null
   ) {
     return JSON.stringify(body);
   }
 
-  if (!!body) {
+  if (body) {
     // possible function/ArrayBuffer/symbol/etc attempt toString()
     try {
-      return (body as any).toString();
+      return (body as any).toString(); // eslint-disable-line @typescript-eslint/no-explicit-any
     } catch {
       // everything failed
-      throw new TypeError("could not coerce return value to string");
+      throw new TypeError('could not coerce return value to string');
     }
   }
 
@@ -79,7 +79,7 @@ export function coerceBody(body: unknown): string {
 export function convertResponseFactory({
   res,
   logger,
-  options,
+  options
 }: {
   res: Response;
   logger: Logger | Console;
@@ -89,17 +89,14 @@ export function convertResponseFactory({
     const errorOutput = {
       errorMessage: message,
       errorType: name,
-      trace: stack?.split("\n"),
+      trace: stack?.split('\n')
     };
-    logger.error("End - Error:");
+    logger.error('End - Error:');
     logger.error(errorOutput);
     return res.status(500).json(errorOutput);
   }
 
-  return function convertResponse(
-    err?: Error,
-    response?: APIGatewayProxyResult
-  ) {
+  return function convertResponse(err?: Error, response?: unknown) {
     setResponseHeaders({ res, options, response });
 
     if (err) {
@@ -107,70 +104,23 @@ export function convertResponseFactory({
     }
 
     if (!response) {
-      throw new TypeError("no response returned from handler");
+      throw new TypeError('no response returned from handler');
     }
 
     try {
-      const coerced = coerceBody(response.body);
-      logger.info("End - Result:");
+      const coerced = isObject(response) ? coerceBody(response.body) : coerceBody(response);
+      logger.info('End - Result:');
       logger.info(coerced);
       res.send(coerced);
 
-      return res.status(response.statusCode ?? 200).end();
+      const statusCode = !isObject(response)
+        ? 200
+        : typeof response.statusCode === 'number'
+        ? response.statusCode
+        : 200;
+      return res.status(statusCode).end();
     } catch (error) {
       return sendError(error as Error);
     }
   };
 }
-
-// if (
-//   typeof messageOrObject === "string" ||
-//   typeof messageOrObject === "number" ||
-//   typeof messageOrObject === "boolean" ||
-//   typeof messageOrObject === "bigint"
-// ) {
-//   response = {
-//     body: `${messageOrObject}`,
-//     statusCode: 200,
-//   };
-// } else if (
-//   // cases of Object or Array
-//   typeof messageOrObject === "object" &&
-//   messageOrObject !== null
-// ) {
-//   response = {
-//     body: JSON.stringify(messageOrObject),
-//     statusCode: 200,
-//   };
-// } else if (!!messageOrObject) {
-//   // possible function/buffer/symbol/etc attempt toString()
-//   try {
-//     response = {
-//       statusCode: 200,
-//       body: messageOrObject.toString(),
-//     };
-//   } catch {
-//     // everything failed
-//     error = new Error("could not coerce return value to string");
-//   }
-// } else {
-//   error = new Error(
-//     `handler returned nullish response: ${messageOrObject}`
-//   );
-// }
-
-// if (!response) {
-//   return callback(new Error("handler didn't return response"));
-// }
-
-// if (!res) {
-//   return reject(new Error("handler didn't return response"));
-// }
-
-// if (!response) {
-//   const error = new Error("handler didn't return response");
-//   if (this.reject) {
-//     return this.reject(error);
-//   }
-//   throw error;
-// }
