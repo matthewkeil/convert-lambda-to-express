@@ -1,7 +1,7 @@
 import { APIGatewayProxyWithCognitoAuthorizerHandler } from "aws-lambda";
 import { Logger } from "winston";
 import { Handler } from "express";
-import { SharedIniFileCredentials } from "aws-sdk";
+import { SharedIniFileCredentials, Credentials } from "aws-sdk";
 import { Context, ContextOptions } from "./Context";
 import { Event, EventOptions } from "./Event";
 import {
@@ -11,40 +11,46 @@ import {
 import { runHandler } from "./runHandler";
 
 export interface WrapperOptions
-  extends Omit<
-      ContextOptions,
-      "startTime" | "credentials" | "resolve" | "reject"
-    >,
+  extends Omit<ContextOptions, "startTime" | "credentials">,
     Pick<
       EventOptions,
-      | "accountId"
-      | "isBase64EncodedReq"
-      | "resourcePath"
-      | "stage"
-      | "stageVariables"
+      "isBase64EncodedReq" | "resourcePath" | "stage" | "stageVariables"
     >,
     ConvertResponseOptions {
+  credentialsFilename?: string;
   profile?: string;
   logger?: Logger;
+}
+
+export function getCredentials(filename?: string, profile?: string) {
+  if (filename) {
+    const credentials = new SharedIniFileCredentials({ filename, profile });
+    if (!!credentials.accessKeyId && !!credentials.secretAccessKey) {
+      return credentials;
+    }
+  }
+
+  if (
+    process.env.AWS_ACCESS_KEY_ID?.length &&
+    process.env.AWS_SECRET_ACCESS_KEY?.length
+  ) {
+    return new Credentials({
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+      sessionToken: process.env.AWS_SESSION_TOKEN,
+    });
+  }
 }
 
 export function wrapLambda(
   handler: APIGatewayProxyWithCognitoAuthorizerHandler,
   options: WrapperOptions = {}
 ): Handler {
-  let credentials: SharedIniFileCredentials | undefined;
-  try {
-    let credsOptions;
-    if (options.profile) {
-      credsOptions = { profile: options.profile };
-    }
-    credentials = new SharedIniFileCredentials(credsOptions);
-  } catch {
-    // throws if no file, no profile named `options.profile` or no default profile
-    // just pass `credentials` object a undefined
-  }
-
   const logger = options.logger ?? console;
+  const credentials = getCredentials(
+    options.credentialsFilename ?? "~/.aws/credentials",
+    options.profile
+  );
 
   return async (req, res, next) => {
     try {
@@ -59,13 +65,14 @@ export function wrapLambda(
         req,
         startTime,
         awsRequestId: context.awsRequestId,
+        accountId: context._accountId,
       });
       const convertResponse = convertResponseFactory({ res, logger, options });
       await runHandler({
-        event,
-        context,
         logger,
         handler,
+        event,
+        context,
         callback: convertResponse,
       });
     } catch (err) {

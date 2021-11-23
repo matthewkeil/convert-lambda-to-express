@@ -17,12 +17,8 @@ type Reject = (err: Error) => void;
  * https://docs.aws.amazon.com/lambda/latest/dg/nodejs-context.html
  */
 export interface ContextOptions {
-  startTime?: number;
+  startTime: number;
   credentials?: SharedIniFileCredentials;
-  resolve?: Resolve;
-  reject?: Reject;
-
-  // passed through from WrapperOptions
   functionName?: string;
   functionVersion?: string;
   memorySize?: number;
@@ -39,6 +35,37 @@ export interface ContextOptions {
 }
 
 export class Context implements IContext {
+  public static createInvokeFunctionArn(
+    region: string,
+    accountId: string,
+    functionName: string
+  ) {
+    return [
+      "arn",
+      "aws",
+      "lambda",
+      region,
+      accountId,
+      "function",
+      functionName,
+    ].join(":");
+  }
+
+  public static getAwsRequestId() {
+    /*
+     * create random invokeid.
+     * Assuming that invokeid follows the format:
+     * 8hex-4hex-4hex-4hex-12hex
+     */
+    return [
+      generateRandomHex(8),
+      generateRandomHex(4),
+      generateRandomHex(4),
+      generateRandomHex(4),
+      generateRandomHex(12),
+    ].join("-");
+  }
+
   public functionName: string;
   public functionVersion: string;
   public memoryLimitInMB: string;
@@ -50,22 +77,20 @@ export class Context implements IContext {
   public clientContext?: ClientContext;
   public callbackWaitsForEmptyEventLoop: boolean;
 
-  
   private _region: string;
-  private _accountId: string;
   private _startTime: number;
   private _timeout: number;
   private __timeout?: NodeJS.Timeout;
-  private _stopped = false;
   private __finalize: () => void;
   private _finalized = false;
 
+  public _accountId: string;
   public _resolve?: Resolve;
   public _reject?: Reject;
 
   constructor(private options: ContextOptions) {
     // setup time management
-    this._startTime = options.startTime ?? Date.now();
+    this._startTime = options.startTime;
     this._timeout = options?.timeoutInSeconds
       ? options.timeoutInSeconds * 1000
       : 3000; // default lambda timeout
@@ -73,31 +98,35 @@ export class Context implements IContext {
       this.fail(
         new TimeoutError(
           "Task timed out after " +
-            (this._timeout / 1000).toFixed(2) +
-            " seconds"
+            (this._timeout / 1000).toFixed(0) +
+            " second(s)"
         )
       );
     }, this._timeout);
 
+    // setup Context internals
+    this._region = this.options.region ?? "us-east-1";
+    this._accountId = this.options.accountId ?? "123456789012";
+    this.__finalize = options.finalize ?? function () {};
+
     // setup properties of IContext
     this.callbackWaitsForEmptyEventLoop = false; // not supported by this package
     this.functionName = options.functionName ?? "convert-lambda-to-express";
-    this.functionVersion = options.functionVersion ?? "1";
-    this.invokedFunctionArn = this._createInvokeFunctionArn();
+    this.functionVersion = options.functionVersion ?? "$LATEST";
     this.memoryLimitInMB = `${options.memorySize ?? 128}`;
-    this.awsRequestId = this._createInvokeId();
     this.logGroupName =
       options.logGroupName ?? `/aws/lambda/${this.functionName}`;
     this.logStreamName = options.logStreamName ?? "aws-log-stream";
     this.identity = options.identity;
     this.clientContext = options.clientContext;
 
-    // setup Context internals
-    this._region = this.options.region ?? "us-east-1";
-    this._accountId = this.options.accountId ?? "123456789012";
-    this._resolve = options.resolve;
-    this._reject = options.reject;
-    this.__finalize = options.finalize ?? function () {};
+    this.invokedFunctionArn = Context.createInvokeFunctionArn(
+      this._region,
+      this._accountId,
+      this.functionName
+    );
+    this.awsRequestId = Context.getAwsRequestId();
+
     for (const [key, value] of Object.entries(this._buildExecutionEnv())) {
       process.env[key] = value;
     }
@@ -107,11 +136,6 @@ export class Context implements IContext {
     err?: Error | string,
     messageOrObject?: any
   ): void | APIGatewayProxyResult {
-    if (this._stopped) {
-      return;
-    }
-    this._stopped = true;
-
     let error: Error | undefined;
     if (typeof err === "string") {
       error = new Error(err);
@@ -159,6 +183,45 @@ export class Context implements IContext {
     const env: { [key: string]: string } = {};
     const pwd = process.cwd();
 
+    /**
+     *  Example env from lambda.
+     *
+     *  // provided by code below
+     *  AWS_LAMBDA_FUNCTION_NAME: 'testing',
+     *  AWS_LAMBDA_FUNCTION_MEMORY_SIZE: '128',
+     *  AWS_LAMBDA_FUNCTION_VERSION: '$LATEST',
+     *  AWS_LAMBDA_INITIALIZATION_TYPE: 'on-demand',
+     *  TZ: ':UTC',
+     *  AWS_LAMBDA_LOG_GROUP_NAME: '/aws/lambda/testing',
+     *  AWS_LAMBDA_LOG_STREAM_NAME: '2021/11/22/[$LATEST]de828bd7f9c24c7eb7785595c8986d57',
+     *  AWS_REGION: 'us-east-1',
+     *  AWS_DEFAULT_REGION: 'us-east-1',
+     *  AWS_ACCESS_KEY_ID: 'ASIAZCOEDDHJLKBSTXHC',
+     *  AWS_SECRET_ACCESS_KEY: 'p9J3AUnM6Xq/FWC1gbjZYQNPQ5dcrssKFE5O5KuX',
+     *  AWS_SESSION_TOKEN: 'IQoJb3JpZ2luX2VjEG0aCXVzLWVhc3QtMSJHMEUCIQDE+QJWdu2ObTnT9tX2LwciiBgtztLCIatoB3SAuf+pXQIgODR1wCU8X0IWyZGWQNcs6gT/fscXr994bg9/PXfW8/8qjAIINhAAGgw2MjM3MTgzNzM4NDIiDDPpPESUXC4fMbct4CrpAc5qgMybO6icB79pLiOw5wysZJJIYRXiB0Je8OAQXrHwNaV8hxyZ8bnLVeSA0K4LSea4htMaKUpL5f88lqmFrIJMYRnKD4V3xVmLX65oFh7wl8WkF2gJ91Hl8x8keEriRdRyD69h1nhcCzM2UsQvZykDw7BTjwBYu74E4JUaTgtdZscG1/W2B9I4ooPWzOwjuCdcY6NFsUC/LBAZojS5UqQkI3Uhj1y4Fj/KtpaGBjR07EaeuRJKEDj7Urw2v4CpmyJIQObu0qqU7nWFAbSiAXyfgEWwJ4F/8sJeDD5rVE9S7aqOj4HSK/nQMJWI8IwGOpoBYbUVUr5d+H4aC4/fJR8oTotYqXqCzwit+KvnShgTLTeOnzxKVIs/h/mAXETBKoSLTSBC5Fhap9+8GJ2Oh+MLRiJ2N2I/JlbT05R9M5J3iL/OlRzxMNj8BLheEit6E23LvmIv+O3AtvDu0N+DDG2++KxlPpmfrC9DiE//i57xfLd/g+arsBnCHw1fK1Jw+6FXovJXVzLloB/DPA==',
+     *  AWS_EXECUTION_ENV: 'AWS_Lambda_nodejs14.x',
+     *  AWS_LAMBDA_RUNTIME_API: '127.0.0.1:9001',
+     *  _HANDLER: 'index.handler',
+     *  PWD: '/var/task',
+     *  LAMBDA_TASK_ROOT: '/var/task',
+     *  LAMBDA_RUNTIME_DIR: '/var/runtime',
+     *  NODE_PATH: '/opt/nodejs/node14/node_modules:/opt/nodejs/node_modules:/var/runtime/node_modules:/var/runtime:/var/task',
+     *
+     *  // provided by node env
+     *  LANG: 'en_US.UTF-8',
+     *  PATH: '/var/lang/bin:/usr/local/bin:/usr/bin/:/bin:/opt/bin',
+     *  SHLVL: '0',
+     *
+     *  // no provided
+     *  NODE_EXTRA_CA_CERTS: '/etc/pki/tls/certs/ca-bundle.crt',
+     *  LD_LIBRARY_PATH: '/var/lang/lib:/lib64:/usr/lib64:/var/runtime:/var/runtime/lib:/var/task:/var/task/lib:/opt/lib',
+     *  AWS_XRAY_DAEMON_ADDRESS: '169.254.79.129:2000',
+     *  _AWS_XRAY_DAEMON_ADDRESS: '169.254.79.129',
+     *  _AWS_XRAY_DAEMON_PORT: '2000',
+     *  AWS_XRAY_CONTEXT_MISSING: 'LOG_ERROR',
+     *  _X_AMZN_TRACE_ID: 'Root=1-619c0415-0114f3884674422b7ee957a1;Parent=4a9245f561fc8965;Sampled=0'
+     */
+
     // base configuration
     env.AWS_LAMBDA_FUNCTION_NAME = this.functionName;
     env.AWS_LAMBDA_FUNCTION_MEMORY_SIZE = Math.floor(
@@ -175,15 +238,15 @@ export class Context implements IContext {
     // information so aws-sdk can run as it would normally
     env.AWS_REGION = this._region;
     env.AWS_DEFAULT_REGION = this._region;
-    env.AWS_ACCESS_KEY_ID =
-      `${this.options.credentials?.accessKeyId}` ??
-      process.env.AWS_ACCESS_KEY_ID;
-    env.AWS_SECRET_ACCESS_KEY =
-      `${this.options.credentials?.secretAccessKey}` ??
-      process.env.AWS_SECRET_ACCESS_KEY;
-    env.AWS_SESSION_TOKEN =
-      `${this.options.credentials?.sessionToken}` ??
-      process.env.AWS_SESSION_TOKEN;
+    if (this.options.credentials?.accessKeyId) {
+      env.AWS_ACCESS_KEY_ID = this.options.credentials.accessKeyId;
+    }
+    if (this.options.credentials?.secretAccessKey) {
+      env.AWS_SECRET_ACCESS_KEY = this.options.credentials.secretAccessKey;
+    }
+    if (this.options.credentials?.sessionToken) {
+      env.AWS_SESSION_TOKEN = this.options.credentials.sessionToken;
+    }
 
     // runtime information
     env.AWS_EXECUTION_ENV = `AWS_Lambda_nodejs${
@@ -199,33 +262,5 @@ export class Context implements IContext {
       : resolve(require.resolve("express"), "..", "..");
 
     return env;
-  }
-
-  public _createInvokeFunctionArn() {
-    return [
-      "arn",
-      "aws",
-      "lambda",
-      this._region,
-      this._accountId || Math.round(Math.random() * 1000000000000).toString(),
-      "function",
-      this.functionName,
-      this.functionVersion,
-    ].join(":");
-  }
-
-  public _createInvokeId() {
-    /*
-     * create random invokeid.
-     * Assuming that invokeid follows the format:
-     * 8hex-4hex-4hex-4hex-12hex
-     */
-    return [
-      generateRandomHex(8),
-      generateRandomHex(4),
-      generateRandomHex(4),
-      generateRandomHex(4),
-      generateRandomHex(12),
-    ].join("-");
   }
 }

@@ -11,6 +11,8 @@ describe("runHandler()", () => {
     const event = new Event({
       startTime,
       awsRequestId: context.awsRequestId,
+      accountId: context._accountId,
+      req: {} as any,
     });
     const logger = {
       log: jest.fn() as any,

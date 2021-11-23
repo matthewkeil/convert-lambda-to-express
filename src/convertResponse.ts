@@ -1,14 +1,17 @@
 import util from "util";
+import { IncomingHttpHeaders } from "http";
 import { Response } from "express";
 import { APIGatewayProxyResult } from "aws-lambda";
 import { Logger } from "winston";
 
-type DefaultHeaders = { [key: string]: Parameters<Response["setHeader"]>[1] };
+type DefaultHeaders = {
+  [key in keyof IncomingHttpHeaders]: Parameters<Response["header"]>[1];
+};
 export interface ConvertResponseOptions {
   defaultResponseHeaders?: DefaultHeaders;
 }
 
-function setResponseHeaders({
+export function setResponseHeaders({
   res,
   response,
   options,
@@ -21,19 +24,19 @@ function setResponseHeaders({
     for (const [name, value] of Object.entries(
       options?.defaultResponseHeaders
     )) {
-      res.setHeader(name, value);
+      res.header(name, value);
     }
   }
 
   if (response?.headers) {
     for (const [name, value] of Object.entries(response.headers)) {
-      res.setHeader(name, `${value}`);
+      res.header(name, `${value}`);
     }
   }
 
   if (response?.multiValueHeaders) {
     for (const [name, value] of Object.entries(response.multiValueHeaders)) {
-      res.setHeader(name, value.map((val) => `${val}`).join(","));
+      res.header(name, value.map((val) => `${val}`).join(", "));
     }
   }
 }
@@ -48,6 +51,10 @@ export function coerceBody(body: unknown): string {
     return `${body}`;
   }
 
+  if (Buffer.isBuffer(body)) {
+    return body.toString();
+  }
+
   if (
     // cases of Object or Array
     typeof body === "object" &&
@@ -57,7 +64,7 @@ export function coerceBody(body: unknown): string {
   }
 
   if (!!body) {
-    // possible function/buffer/symbol/etc attempt toString()
+    // possible function/ArrayBuffer/symbol/etc attempt toString()
     try {
       return (body as any).toString();
     } catch {
@@ -69,6 +76,52 @@ export function coerceBody(body: unknown): string {
   throw new TypeError(`handler returned nullish response: ${body}`);
 }
 
+export function convertResponseFactory({
+  res,
+  logger,
+  options,
+}: {
+  res: Response;
+  logger: Logger | Console;
+  options?: ConvertResponseOptions;
+}) {
+  function sendError({ message, name, stack }: Error) {
+    const errorOutput = {
+      errorMessage: message,
+      errorType: name,
+      trace: stack?.split("\n"),
+    };
+    logger.error("End - Error:");
+    logger.error(errorOutput);
+    return res.status(500).json(errorOutput);
+  }
+
+  return function convertResponse(
+    err?: Error,
+    response?: APIGatewayProxyResult
+  ) {
+    setResponseHeaders({ res, options, response });
+
+    if (err) {
+      return sendError(err);
+    }
+
+    if (!response) {
+      throw new TypeError("no response returned from handler");
+    }
+
+    try {
+      const coerced = coerceBody(response.body);
+      logger.info("End - Result:");
+      logger.info(coerced);
+      res.send(coerced);
+
+      return res.status(response.statusCode ?? 200).end();
+    } catch (error) {
+      return sendError(error as Error);
+    }
+  };
+}
 
 // if (
 //   typeof messageOrObject === "string" ||
@@ -121,46 +174,3 @@ export function coerceBody(body: unknown): string {
 //   }
 //   throw error;
 // }
-
-export function convertResponseFactory({
-  res,
-  logger,
-  options,
-}: {
-  res: Response;
-  logger: Logger | Console;
-  options?: ConvertResponseOptions;
-}) {
-  function sendError({ message, name, stack }: Error) {
-    const errorOutput = {
-      errorMessage: message,
-      errorType: name,
-      trace: stack?.split("\n"),
-    };
-    logger.log("error", "End - Error:");
-    logger.log("error", errorOutput);
-    return res.status(500).json(errorOutput);
-  }
-
-  return function convertResponse(
-    err?: Error,
-    response?: APIGatewayProxyResult
-  ) {
-    setResponseHeaders({ res, options, response });
-
-    if (err) {
-      return sendError(err);
-    }
-
-    try {
-      const coerced = coerceBody(response?.body);
-      logger.log("info", "End - Result:");
-      logger.log("info", coerced);
-      res.send(coerced);
-
-      return res.status(response?.statusCode ?? 200).end();
-    } catch (error) {
-      return sendError(error as Error);
-    }
-  };
-}
