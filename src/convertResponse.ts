@@ -10,10 +10,7 @@ export interface ConvertResponseOptions {
 }
 
 function isObject(response: unknown): response is Record<string, unknown> {
-  if (typeof response === 'object' && response !== null) {
-    return true;
-  }
-  return false;
+  return typeof response === 'object' && response !== null && !Array.isArray(response) && !Buffer.isBuffer(response);
 }
 
 export function setResponseHeaders({
