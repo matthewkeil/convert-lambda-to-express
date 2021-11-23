@@ -22,7 +22,7 @@ export interface HandlerConfig extends WrapperOptions {
   environment?: HandlerEnvironment;
 }
 
-export interface DevServerConfig extends WrapperOptions {
+export interface DevServerConfig {
   port?: number;
   hotReload?: boolean;
   prod?: boolean;
@@ -204,6 +204,12 @@ export function getDevServer(config?: DevServerConfig) {
 }
 
 export function startDevServer(config: DevServerConfig = {}) {
+  if (config.prod) {
+    process.env.NODE_ENV = 'production';
+  } else if (process.env.NODE_ENV === 'production') {
+    config.prod = true;
+  }
+
   const port = config.port ?? 3001;
   const hotReload = config.hotReload ?? true;
 
