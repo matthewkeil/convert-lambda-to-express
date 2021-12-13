@@ -225,6 +225,15 @@ export function startDevServer(config: DevServerConfig = {}) {
 
   let { app, server } = startServer();
 
+  function restart() {
+    server.close(err => {
+      if (err) {
+        throw err;
+      }
+      ({ app, server } = startServer());
+    });
+  }
+
   if (hotReload) {
     for (const path of watchPaths) {
       let debounce: NodeJS.Timeout | undefined;
@@ -239,16 +248,11 @@ export function startDevServer(config: DevServerConfig = {}) {
             debounce = undefined;
           }, 1000);
 
-          server.close(err => {
-            if (err) {
-              throw err;
-            }
-            ({ app, server } = startServer());
-          });
+          restart();
         }
       });
     }
   }
 
-  return { app, server };
+  return { restart, app, server };
 }
