@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "files": ["jest.config.ts", "src/index.d.ts"],
+  "include": ["src", "test"],
+  "exclude": ["node_modules", "dist"],
+  "compilerOptions": {
+    "outDir": "dist",
+    "target": "ES2018",
+    "lib": ["ESNext"],
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "types": ["node", "jest"]
+  }
+}

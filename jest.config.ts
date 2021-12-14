@@ -9,7 +9,8 @@ const config: InitialOptionsTsJest = {
   coverageReporters: ['html'],
   globals: {
     'ts-jest': {
-      diagnostics: true
+      diagnostics: true,
+      tsconfig: '<rootDir>/tsconfig.test.json'
     }
   }
 };

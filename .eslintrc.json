@@ -4,6 +4,7 @@
     "es2020": true,
     "jest": true
   },
+
   "ignorePatterns": [".eslintrc.js"],
   "extends": [
     "eslint:recommended",
@@ -20,7 +21,7 @@
   "parserOptions": {
     "ecmaVersion": "es2020",
     "sourceType": "module",
-    "project": "./tsconfig.json"
+    "project": "./tsconfig.test.json"
   },
   "plugins": ["@typescript-eslint", "prettier"],
   "rules": {
