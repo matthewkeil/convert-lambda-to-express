@@ -34,7 +34,10 @@ export interface DevServerConfig {
   codeDirectory?: string;
 }
 
-export const handlerDefinitions: HandlerConfig[] = [];
+if (!globalThis.CLTE_HANDLER_DEFINITIONS) {
+  globalThis.CLTE_HANDLER_DEFINITIONS = [];
+}
+export const handlerDefinitions: HandlerConfig[] = globalThis.CLTE_HANDLER_DEFINITIONS;
 
 export const watchPaths: string[] = [];
 export function watchCodePath(path: string) {
