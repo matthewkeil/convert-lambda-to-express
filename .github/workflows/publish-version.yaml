@@ -49,7 +49,7 @@ jobs:
           node-version: '16.x'
           registry-url: 'https://registry.npmjs.org'
 
-      - uses: actions/download-artifacts@master
+      - uses: actions/download-artifact@master
         with:
           name: build artifacts
           path: dist
