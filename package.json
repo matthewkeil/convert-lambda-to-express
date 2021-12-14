@@ -22,7 +22,6 @@
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.84",
-    "@types/helmet": "^4.0.0",
     "@types/jest": "^27.0.2",
     "@types/morgan": "^1.9.3",
     "@types/node": "^15.12.4",
