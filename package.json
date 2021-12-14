@@ -7,7 +7,8 @@
     "ts": "npm run node -- -r ts-node/register",
     "test": "jest",
     "lint": "eslint --fix .",
-    "build": "rm -rf dist && tsc --project tsconfig.build.json"
+    "build": "rm -rf dist && tsc --project tsconfig.build.json",
+    "postversion": "git push --tags"
   },
   "dependencies": {
     "@types/cors": "^2.8.12",

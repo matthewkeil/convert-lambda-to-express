@@ -34,7 +34,7 @@ export interface DevServerConfig {
   codeDirectory?: string;
 }
 
-const handlerDefinitions: HandlerConfig[] = [];
+export const handlerDefinitions: HandlerConfig[] = [];
 
 export const watchPaths: string[] = [];
 export function watchCodePath(path: string) {
