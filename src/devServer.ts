@@ -69,17 +69,21 @@ export function addToDevServer(config: HandlerConfig) {
   handlerDefinitions.push(config);
 }
 
-export const overwrittenKeys: string[] = [];
+export const overwrittenKeys = new Set<string>();
+const outputKeys = new Set<string>();
 export function loadEnvironment({ verbose, environment }: { verbose?: boolean; environment?: HandlerEnvironment }) {
   if (!environment) {
     return;
   }
   for (const [key, value] of Object.entries(environment)) {
     if (key in process.env) {
-      overwrittenKeys.push(key);
+      overwrittenKeys.add(key);
     }
     if (verbose) {
-      console.log(`loading env: key ${key} with value ${value}`);
+      if (!outputKeys.has(key)) {
+        outputKeys.add(key);
+        console.log(`loading env: key ${key} with value ${value}`);
+      }
     }
     process.env[key] = value;
   }
@@ -180,7 +184,7 @@ function buildDevServer({
     }
   }
 
-  if (overwrittenKeys.length && verbose) {
+  if (!!overwrittenKeys.size && verbose) {
     console.log(`The following process.env.KEYS were overwritten. The
 same key was loaded in multiple handler files and there may be
 undesired effects.
@@ -192,7 +196,9 @@ as the values for the keys listed below may be different than anticipated.
 
 The following are the keys that may have been overwritten:
 >
-${overwrittenKeys.map(key => `> process.env.${key}`).join('\n')}
+${Array.from(overwrittenKeys)
+  .map(key => `> process.env.${key}`)
+  .join('\n')}
 >`);
   }
 
@@ -221,6 +227,9 @@ export function startDevServer(config: DevServerConfig = {}) {
     const server = createServer(app);
     server.listen(port, () => {
       console.log(`listening on port: ${port}`);
+      if (!config.verbose) {
+        console.log(`loaded ${handlerDefinitions.length} handlers`);
+      }
     });
 
     return { app, server };
