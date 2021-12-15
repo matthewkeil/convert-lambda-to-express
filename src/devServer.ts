@@ -24,7 +24,7 @@ export interface HandlerConfig extends WrapperOptions {
 
 export interface DevServerConfig {
   port?: number;
-  hotReload?: boolean;
+  hotReload?: boolean | number;
   prod?: boolean;
   morganSetting?: MorganOption;
   corsOptions?: CorsOptions;
@@ -222,8 +222,7 @@ export function startDevServer(config: DevServerConfig = {}) {
   const port = config.port ?? 3001;
   const hotReload = config.hotReload ?? true;
 
-  function startServer() {
-    const app = getDevServer(config);
+  function startServer(app: express.Express) {
     const server = createServer(app);
     server.listen(port, () => {
       console.log(`listening on port: ${port}`);
@@ -232,36 +231,31 @@ export function startDevServer(config: DevServerConfig = {}) {
       }
     });
 
-    return { app, server };
+    return server;
   }
 
-  let { app, server } = startServer();
+  let app = getDevServer(config);
+  let server = startServer(app);
 
   function restart() {
+    app = getDevServer(config);
     server.close(err => {
       if (err) {
         throw err;
       }
-      ({ app, server } = startServer());
+      server = startServer(app);
     });
   }
 
   if (hotReload) {
     for (const path of watchPaths) {
-      let debounce: NodeJS.Timeout | undefined;
+      let debounce: NodeJS.Timeout = setTimeout(() => ({}), 3000);
       watch(path, { recursive: true }, () => {
-        // debounce server restarts to once a second
-        if (!debounce) {
-          debounce = setTimeout(() => {
-            if (debounce) {
-              // if timeout still exists during tick clear it
-              clearTimeout(debounce);
-            }
-            debounce = undefined;
-          }, 1000);
-
-          restart();
+        if (debounce?.hasRef()) {
+          return;
         }
+        debounce = setTimeout(() => ({}), typeof hotReload === 'number' ? hotReload : 1000);
+        restart();
       });
     }
   }
