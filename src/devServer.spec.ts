@@ -68,10 +68,10 @@ describe('devServer', () => {
 
   describe('loadEnvironment', () => {
     beforeEach(() => {
-      overwrittenKeys.length = 0;
+      overwrittenKeys.clear();
     });
     afterEach(() => {
-      overwrittenKeys.length = 0;
+      overwrittenKeys.clear();
     });
     const environment1 = {
       TEST_VAR: 'environment1-var1',
@@ -95,12 +95,12 @@ describe('devServer', () => {
       delete process.env.TEST_VAR2;
       delete process.env.TEST_VAR3;
 
-      expect(overwrittenKeys.length).toEqual(0);
+      expect(overwrittenKeys.size).toEqual(0);
       loadEnvironment({ environment: environment1 });
       loadEnvironment({ environment: environment2 });
 
-      expect(overwrittenKeys.length).toEqual(1);
-      expect(overwrittenKeys[0]).toEqual('TEST_VAR');
+      expect(overwrittenKeys.size).toEqual(1);
+      expect(overwrittenKeys.values().next().value).toEqual('TEST_VAR');
 
       expect(process.env.TEST_VAR).toEqual(environment2.TEST_VAR);
       expect(process.env.TEST_VAR2).toEqual(environment1.TEST_VAR2);
