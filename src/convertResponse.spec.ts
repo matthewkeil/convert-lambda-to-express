@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import util from 'util';
 import { APIGatewayProxyResult } from 'aws-lambda';
 import { coerceBody, convertResponseFactory, ConvertResponseOptions, setResponseHeaders } from './convertResponse';
 
@@ -83,53 +84,54 @@ describe('convertResponse()', () => {
 
   describe('coerceBody', () => {
     it('should handle string', () => {
-      const coerced = coerceBody('hello');
-      expect(coerced).toEqual('hello');
+      expect(coerceBody('hello')).toEqual('hello');
     });
     it('should handle number', () => {
-      const coerced = coerceBody(1234);
-      expect(coerced).toEqual('1234');
+      expect(coerceBody(1234)).toEqual('1234');
     });
     it('should handle boolean', () => {
-      const coerced = coerceBody(true);
-      expect(coerced).toEqual('true');
+      expect(coerceBody(true)).toEqual('true');
     });
     it('should handle bigint', () => {
       const intString = '90071992547409911234';
-      const coerced = coerceBody(BigInt(intString));
-      expect(coerced).toEqual(intString);
+      expect(coerceBody(BigInt(intString))).toEqual(intString);
     });
     it('should handle object', () => {
-      const coerced = coerceBody({ some: 'object' });
-      expect(coerced).toEqual('{"some":"object"}');
+      expect(coerceBody({ some: 'object' })).toEqual('{"some":"object"}');
     });
     it('should handle array', () => {
-      const coerced = coerceBody(['some', 'array']);
-      expect(coerced).toEqual('["some","array"]');
+      expect(coerceBody(['some', 'array'])).toEqual('["some","array"]');
     });
     it('should handle buffer', () => {
-      const coerced = coerceBody(Buffer.from('hello'));
-      expect(coerced).toEqual('hello');
+      expect(coerceBody(Buffer.from('hello'))).toEqual('hello');
     });
     it('should handle function', () => {
       const func = function (param: any) {
         return param;
       };
-      const coerced = coerceBody(func);
-      expect(coerced).toEqual(func.toString());
+      expect(coerceBody(func)).toEqual(func.toString());
     });
     it('should handle null', () => {
-      expect(() => coerceBody(null)).toThrowError('handler returned nullish response: null');
+      expect(coerceBody(null)).toEqual('');
     });
     it('should handle undefined', () => {
-      expect(() => coerceBody(undefined)).toThrowError('handler returned nullish response: undefined');
+      expect(coerceBody(undefined)).toEqual('');
     });
     it('should handle odd objects', () => {
       const oddObject = function (param: any) {
         return param;
       };
       oddObject.toString = 0;
-      expect(() => coerceBody(oddObject)).toThrowError('could not coerce return value to string');
+      try {
+        // eslint-disable-next-line no-console
+        console.log(`${oddObject}`);
+      } catch (err: unknown) {
+        const { message, name } = err as Error;
+        // check that was a bad object
+        expect(name).toEqual('TypeError');
+        expect(message).toEqual('Cannot convert object to primitive value');
+      }
+      expect(coerceBody(oddObject)).toEqual('');
     });
   });
 

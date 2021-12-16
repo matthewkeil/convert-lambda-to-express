@@ -55,7 +55,8 @@ export function coerceBody(body: unknown): string {
   if (
     // cases of Object or Array
     typeof body === 'object' &&
-    body !== null
+    body !== null &&
+    !Buffer.isBuffer(body)
   ) {
     return JSON.stringify(body);
   }
@@ -66,11 +67,10 @@ export function coerceBody(body: unknown): string {
       return (body as any).toString(); // eslint-disable-line @typescript-eslint/no-explicit-any
     } catch {
       // everything failed
-      throw new TypeError('could not coerce return value to string');
     }
   }
 
-  throw new TypeError(`handler returned nullish response: ${body}`);
+  return '';
 }
 
 export function convertResponseFactory({
@@ -100,21 +100,13 @@ export function convertResponseFactory({
       return sendError(err);
     }
 
-    if (!response) {
-      throw new TypeError('no response returned from handler');
-    }
-
     try {
-      const coerced = isObject(response) ? coerceBody(response.body) : coerceBody(response);
+      const coerced = isObject(response) && 'body' in response ? coerceBody(response.body) : coerceBody(response);
       logger.info('End - Result:');
       logger.info(coerced);
       res.send(coerced);
 
-      const statusCode = !isObject(response)
-        ? 200
-        : typeof response.statusCode === 'number'
-        ? response.statusCode
-        : 200;
+      const statusCode = isObject(response) && !!response.statusCode ? parseInt(`${response.statusCode}`) : 200;
       return res.status(statusCode).end();
     } catch (error) {
       return sendError(error as Error);
