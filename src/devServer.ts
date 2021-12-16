@@ -123,6 +123,8 @@ export function convertToExpressPath(resourcePath: string) {
   return resourcePath.replace(/\{/g, ':').replace(/\}/g, '');
 }
 
+let showedJsWarning = false;
+
 function buildDevServer({
   verbose,
   prod,
@@ -175,6 +177,9 @@ function buildDevServer({
       codeDirectory,
       handler
     });
+    if (!showedJsWarning && filePath.endsWith('.js')) {
+      console.warn('using .js files with the dev server is not recommended. us/watch the .ts source files instead');
+    }
     const wrappedHandler = wrapLambda(handlerFunction, handlerConfig);
     devServer[_method](path, wrappedHandler);
 
