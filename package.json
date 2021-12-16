@@ -1,6 +1,6 @@
 {
   "name": "convert-lambda-to-express",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Wrapper to run lambda on express. Works great for running lambdas as an express server during development but is production ready. Developed to work in conjunction with matthewkeil/full-stack-pattern cdk construct.",
   "scripts": {
     "node": "node",
