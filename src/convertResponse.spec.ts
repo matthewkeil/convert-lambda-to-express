@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import util from 'util';
 import { APIGatewayProxyResult } from 'aws-lambda';
 import { coerceBody, convertResponseFactory, ConvertResponseOptions, setResponseHeaders } from './convertResponse';
 
