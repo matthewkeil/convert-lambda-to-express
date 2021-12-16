@@ -3,14 +3,12 @@ import { watch } from 'fs';
 import { resolve } from 'path';
 import { createServer } from 'http';
 import type { APIGatewayProxyWithCognitoAuthorizerHandler } from 'aws-lambda';
-import nodemon from 'nodemon';
 import morgan from 'morgan';
 import helmet from 'helmet';
 import cors, { CorsOptions } from 'cors';
 import express, { Handler } from 'express';
 import { HttpMethod } from './utils';
 import { wrapLambda, WrapperOptions } from './wrapLambda';
-import { verbose } from 'winston';
 
 type MorganOption = 'combined' | 'common' | 'dev' | 'short' | 'tiny';
 
@@ -35,6 +33,7 @@ export interface DevServerConfig {
   middleware?: Handler[];
   verbose?: boolean;
   codeDirectory?: string;
+  environment?: HandlerEnvironment;
 }
 
 if (!globalThis.CLTE_HANDLER_DEFINITIONS) {
@@ -131,7 +130,8 @@ function buildDevServer({
   corsOptions,
   helmetOptions,
   middleware,
-  codeDirectory: globalCodeDirectory
+  codeDirectory: globalCodeDirectory,
+  environment: serverEnvironment = {}
 }: DevServerConfig = {}) {
   const devServer = express();
   devServer.use(morgan(morganSetting ?? prod ? 'combined' : 'dev'));
@@ -153,6 +153,7 @@ function buildDevServer({
   }
 
   for (const handlerConfig of handlerDefinitions) {
+    handlerConfig.environment = { ...serverEnvironment, ...(handlerConfig.environment ?? {}) };
     const { environment, method, resourcePath, handler } = handlerConfig;
     const path = convertToExpressPath(resourcePath);
     const _method = method.toLowerCase() as Lowercase<HttpMethod>;
