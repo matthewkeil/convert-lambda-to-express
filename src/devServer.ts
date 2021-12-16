@@ -3,12 +3,14 @@ import { watch } from 'fs';
 import { resolve } from 'path';
 import { createServer } from 'http';
 import type { APIGatewayProxyWithCognitoAuthorizerHandler } from 'aws-lambda';
+import nodemon from 'nodemon';
 import morgan from 'morgan';
 import helmet from 'helmet';
 import cors, { CorsOptions } from 'cors';
 import express, { Handler } from 'express';
 import { HttpMethod } from './utils';
 import { wrapLambda, WrapperOptions } from './wrapLambda';
+import { verbose } from 'winston';
 
 type MorganOption = 'combined' | 'common' | 'dev' | 'short' | 'tiny';
 
@@ -25,6 +27,7 @@ export interface HandlerConfig extends WrapperOptions {
 export interface DevServerConfig {
   port?: number;
   hotReload?: boolean | number;
+  restartDelay?: number;
   prod?: boolean;
   morganSetting?: MorganOption;
   corsOptions?: CorsOptions;
@@ -163,7 +166,7 @@ function buildDevServer({
      */
     loadEnvironment({ verbose, environment });
 
-    const codeDirectory = handlerConfig.codeDirectory ?? globalCodeDirectory;
+    const codeDirectory = globalCodeDirectory ?? handlerConfig.codeDirectory;
     if (!codeDirectory) {
       throw new Error(`codeDirectory is required for ${handlerConfig.handler}`);
     }
@@ -225,9 +228,10 @@ export function startDevServer(config: DevServerConfig = {}) {
   function startServer(app: express.Express) {
     const server = createServer(app);
     server.listen(port, () => {
-      console.log(`listening on port: ${port}`);
-      if (!config.verbose) {
-        console.log(`loaded ${handlerDefinitions.length} handlers`);
+      if (config.verbose) {
+        console.log(`listening on port: ${port}`);
+      } else {
+        console.log(`loaded ${handlerDefinitions.length} handlers on port: ${port}`);
       }
     });
 
@@ -248,13 +252,28 @@ export function startDevServer(config: DevServerConfig = {}) {
   }
 
   if (hotReload) {
+    if (config.verbose) {
+      console.log(
+        `>>>\n>>> watching code paths\n>\n${(watchPaths.length ? watchPaths : ['none']).map(
+          path => `> ${path}`
+        )}\n>\n>>>`
+      );
+    }
     for (const path of watchPaths) {
-      let debounce: NodeJS.Timeout = setTimeout(() => ({}), 3000);
+      let debounce: NodeJS.Timeout | undefined;
+      const timeoutHandler = () => {
+        if (debounce) {
+          clearTimeout(debounce);
+        }
+        debounce = undefined;
+      };
+
+      setTimeout(timeoutHandler, 2000);
       watch(path, { recursive: true }, () => {
-        if (debounce?.hasRef()) {
+        if (debounce) {
           return;
         }
-        debounce = setTimeout(() => ({}), typeof hotReload === 'number' ? hotReload : 1000);
+        debounce = setTimeout(timeoutHandler, typeof hotReload === 'number' ? hotReload : 1000);
         restart();
       });
     }
