@@ -1,7 +1,8 @@
 /* eslint-disable no-console */
-import { watch } from 'fs';
+// import { watch } from 'fs';
 import { resolve } from 'path';
 import { createServer } from 'http';
+import { watch } from 'chokidar';
 import type { APIGatewayProxyWithCognitoAuthorizerHandler } from 'aws-lambda';
 import morgan from 'morgan';
 import helmet from 'helmet';
@@ -276,9 +277,14 @@ export function startDevServer(config: DevServerConfig = {}) {
       };
 
       setTimeout(timeoutHandler, 2000);
-      watch(path, { recursive: true }, () => {
+      const watcher = watch(path, {});
+
+      watcher.on('change', filePath => {
         if (debounce) {
           return;
+        }
+        if (config.verbose) {
+          console.log(`>>> file changed: ${filePath}`);
         }
         debounce = setTimeout(timeoutHandler, typeof hotReload === 'number' ? hotReload : 1000);
         restart();
