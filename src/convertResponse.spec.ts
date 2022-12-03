@@ -159,8 +159,6 @@ describe('convertResponse()', () => {
       expect(res.send).toHaveBeenCalledWith(defaultResponse.body);
       expect(res.status).toBeCalledTimes(1);
       expect(res.status).toHaveBeenCalledWith(defaultResponse.statusCode);
-      expect(res.end).toBeCalledTimes(1);
-      expect(res.end).toHaveBeenCalledWith();
     });
 
     it('should set a default statusCode', () => {

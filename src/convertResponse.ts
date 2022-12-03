@@ -104,10 +104,9 @@ export function convertResponseFactory({
       const coerced = isObject(response) && 'body' in response ? coerceBody(response.body) : coerceBody(response);
       logger.info('End - Result:');
       logger.info(coerced);
-      res.send(coerced);
 
       const statusCode = isObject(response) && !!response.statusCode ? parseInt(`${response.statusCode}`) : 200;
-      return res.status(statusCode).end();
+      return res.status(statusCode).send(coerced);
     } catch (error) {
       return sendError(error as Error);
     }
